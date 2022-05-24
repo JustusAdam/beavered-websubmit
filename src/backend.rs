@@ -4,6 +4,9 @@ pub use mysql::Value;
 use mysql::*;
 use std::collections::HashMap;
 use sqlparser::ast::*;
+use serde::{Serialize, de::DeserializeOwned};
+
+use beaver::policy::Policied;
 
 pub struct MySqlBackend {
     pub handle: mysql::Conn,
@@ -127,27 +130,45 @@ impl MySqlBackend {
         })
     }
 
+    pub fn query_exec_policied<V, F : FnMut(Vec<Value>, Box<dyn beaver::policy::Policy>) -> V>(&mut self, qname: &str, keys: Vec<Value>, mut deser: F) -> Vec<V> {
+        self.query_exec_intern(
+            qname,
+            keys,
+            |mut vals| {
+                let p = serde_json::from_str(&String::from_value(vals.pop().unwrap())).unwrap();
+                deser(vals, p)
+            }
+        )
+    }
+
     pub fn query_exec(&mut self, qname: &str, keys: Vec<Value>) -> Vec<Vec<Value>> {
+        self.query_exec_intern(qname, keys, |row| row)
+    }
+
+    fn query_exec_intern<V, F : FnMut(Vec<Value>) -> V>(&mut self, qname: &str, keys: Vec<Value>, mut deser: F) -> Vec<V> {
         let q = self.queries.get(qname).unwrap();
-        let res = self
-            .handle
+        self.handle
             .exec_iter(q, keys)
-            .expect(&format!("failed to select from {}", qname));
-        let mut rows = vec![];
-        for row in res {
-            let rowvals = row.unwrap().unwrap();
-            let vals: Vec<Value> = rowvals.iter().map(|v| v.clone().into()).collect();
-            rows.push(vals);
-        }
+            .expect(&format!("failed to select from {}", qname))
+            .map(|row| {
+                let rowvals = row.unwrap().unwrap();
+                let vals: Vec<Value> = rowvals.iter().map(|v| v.clone().into()).collect();
+                deser(vals)
+            })
+            .collect()
         /*debug!(
             self.log,
             "executed query {}, got {} rows",
             qname,
             rows.len()
         );*/
-        return rows;
     }
 
+    pub fn insert_policied<P: beaver::policy::Policy + Serialize>(&mut self, table: &str, mut vals: Vec<Value>, policy : &P) {
+        vals.push(serde_json::to_string(policy).unwrap().to_value());
+        self.insert(table, vals)
+    }
+    
     pub fn insert(&mut self, table: &str, vals: Vec<Value>) {
         let valstrs: Vec<&str> = vals.iter().map(|_| "?").collect();
         let q = format!(r"INSERT INTO {} VALUES ({});", table, valstrs.join(","));
@@ -183,10 +204,21 @@ impl MySqlBackend {
             .expect(&format!("failed to update {}, query {}!", table, q));
     }
 
+    pub fn insert_or_update_policied<P: beaver::policy::Policy + Serialize>(
+        &mut self,
+        table: &str,
+        mut rec: Vec<Value>,
+        update_vals: Vec<(u64, Value)>,
+        policy: &P,
+    ) {
+        rec.push(serde_json::to_string(policy).unwrap().to_value());
+        self.insert_or_update(table, rec, update_vals)
+    }
+
     pub fn insert_or_update(
         &mut self,
         table: &str,
-        rec: Vec<Value>,
+        mut rec: Vec<Value>,
         update_vals: Vec<(u64, Value)>,
     ) {
         let (_, cols) = self

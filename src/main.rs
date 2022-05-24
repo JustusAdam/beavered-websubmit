@@ -10,6 +10,9 @@ extern crate slog_term;
 #[macro_use]
 extern crate serde_derive;
 
+#[macro_use] extern crate beaver;
+extern crate beaver_derive;
+
 mod admin;
 mod apikey;
 mod args;

@@ -13,20 +13,64 @@ use rocket_dyn_templates::Template;
 use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
 
+extern crate beaver_derive;
+
+use beaver::policy::PoliciedString;
+use beaver::policy::Policied;
+use beaver::generic_policied::*;
+
 //pub(crate) enum LectureQuestionFormError {
 //   Invalid,
 //}
+
+#[derive(Clone, Serialize, Deserialize)]
+struct AnswerPolicy {
+    student_id: String,
+}
+
+
+#[typetag::serde]
+impl beaver::policy::Policy for AnswerPolicy {
+    fn check(&self, ctxt: &beaver::filter::Context) -> Result<(), beaver::policy::PolicyError> {
+        Ok(())
+    }
+    fn merge(&self, other: &Box<dyn beaver::policy::Policy>) -> Result<Box<dyn beaver::policy::Policy>, beaver::policy::PolicyError> {
+        Ok(Box::new(beaver::policy::MergePolicy::make( 
+            Box::new(self.clone()),
+            other.clone(),
+        ))) 
+    }
+}
+
 
 #[derive(Debug, FromForm)]
 pub(crate) struct LectureQuestionSubmission {
     answers: HashMap<u64, String>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 pub(crate) struct LectureQuestion {
     pub id: u64,
     pub prompt: String,
     pub answer: Option<String>,
+}
+
+trait GPoliciedLectureQuestionExt {
+    fn id(&self) -> &u64;
+    fn prompt(&self) -> &String;
+    fn answer(&self) -> GPolicied<&Option<String>>;
+}
+
+impl GPoliciedLectureQuestionExt for GPolicied<LectureQuestion> {
+    fn id(&self) -> &u64 {
+        &self.unsafe_borrow_inner().id
+    }
+    fn prompt(&self) -> &String {
+        &self.unsafe_borrow_inner().prompt
+    }
+    fn answer(&self) -> GPolicied<&Option<String>> {
+        GPolicied::make(&self.unsafe_borrow_inner().answer, self.get_policy().clone())
+    }
 }
 
 #[derive(Serialize)]
@@ -36,7 +80,7 @@ pub(crate) struct LectureQuestionsContext {
     pub parent: &'static str,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone, Deserialize)]
 struct LectureAnswer {
     id: u64,
     user: String,
@@ -145,16 +189,20 @@ pub(crate) fn questions(
     let mut bg = backend.lock().unwrap();
     let key: Value = (num as u64).into();
 
-    let answers_res = bg.query_exec(
+    let answers_res = bg.query_exec_policied(
         "my_answers_for_lec",
         vec![(num as u64).into(), apikey.user.clone().into()],
+        |e, p| 
+            GPolicied::make(
+                (from_value(e[2].clone()),
+                from_value(e[3].clone())),
+                p,
+            )
     );
-    let mut answers = HashMap::new();
+    let mut answers = PoliciedValHashMap::new();
 
     for r in answers_res {
-        let id: u64 = from_value(r[2].clone());
-        let atext: String = from_value(r[3].clone());
-        answers.insert(id, atext);
+        answers.insert_kv(r);
     }
     let res = bg.query_exec("qs_by_lec", vec![key]);
     drop(bg);
@@ -162,19 +210,22 @@ pub(crate) fn questions(
         .into_iter()
         .map(|r| {
             let id: u64 = from_value(r[1].clone());
-            let answer = answers.get(&id).map(|s| s.to_owned());
-            LectureQuestion {
-                id: id,
-                prompt: from_value(r[2].clone()),
-                answer: answer,
-            }
+            let answer = answers.get(&id).map(|p| p.map(|s: &String| s.to_owned()));
+            GPolicied::make_default(
+                |answer|
+                    LectureQuestion {
+                        id: id,
+                        prompt: from_value(r[2].clone()),
+                        answer: answer,
+                    }
+            ).apply(beaver::generic_policied::internalize_option(answer))
         })
         .collect();
-    qs.sort_by(|a, b| a.id.cmp(&b.id));
+    qs.sort_by(|a, b| a.id().cmp(&b.id()));
 
     let ctx = LectureQuestionsContext {
         lec_id: num,
-        questions: qs,
+        questions: beaver::generic_policied::internalize_vec(qs).export_check(&kv_ctx!()).unwrap(),
         parent: "layout",
     };
     Template::render("questions", &ctx)
