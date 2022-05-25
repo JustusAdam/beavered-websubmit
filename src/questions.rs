@@ -29,10 +29,17 @@ struct AnswerPolicy {
 }
 
 
+
 #[typetag::serde]
 impl beaver::policy::Policy for AnswerPolicy {
     fn check(&self, ctxt: &beaver::filter::Context) -> Result<(), beaver::policy::PolicyError> {
-        Ok(())
+        match ctxt {
+            beaver::filter::Context::CustomContext(any) if any.is::<Admin>() => Ok(()),
+            beaver::filter::Context::KVContext(m) if (m.get("user") == Some(&self.student_id) && m.get("method") == Some(&"website".to_string())) || (m.get("method") == Some(&"email-notify".to_string()) && m.get("role") == Some(&"staff".to_string())) => {
+                Ok(())
+            }
+            _ => Err(beaver::policy::PolicyError { message: "Failed export check".to_string()})
+        }
     }
     fn merge(&self, other: &Box<dyn beaver::policy::Policy>) -> Result<Box<dyn beaver::policy::Policy>, beaver::policy::PolicyError> {
         Ok(Box::new(beaver::policy::MergePolicy::make( 
@@ -56,19 +63,19 @@ pub(crate) struct LectureQuestion {
 }
 
 trait GPoliciedLectureQuestionExt {
-    fn id(&self) -> &u64;
-    fn prompt(&self) -> &String;
-    fn answer(&self) -> GPolicied<&Option<String>>;
+    fn get_id(&self) -> &u64;
+    fn get_prompt(&self) -> &String;
+    fn get_answer(&self) -> GPolicied<&Option<String>>;
 }
 
 impl GPoliciedLectureQuestionExt for GPolicied<LectureQuestion> {
-    fn id(&self) -> &u64 {
+    fn get_id(&self) -> &u64 {
         &self.unsafe_borrow_inner().id
     }
-    fn prompt(&self) -> &String {
+    fn get_prompt(&self) -> &String {
         &self.unsafe_borrow_inner().prompt
     }
-    fn answer(&self) -> GPolicied<&Option<String>> {
+    fn get_answer(&self) -> GPolicied<&Option<String>> {
         GPolicied::make(&self.unsafe_borrow_inner().answer, self.get_policy().clone())
     }
 }
@@ -86,6 +93,28 @@ struct LectureAnswer {
     user: String,
     answer: String,
     time: Option<NaiveDateTime>,
+}
+
+trait GPoliciedLectureAnswerExt {
+    fn get_id(&self) -> &u64;
+    fn get_user(&self) -> &String;
+    fn get_answer(&self) -> GPolicied<&String>;
+    fn get_time(&self) -> GPolicied<&Option<NaiveDateTime>>;
+}
+
+impl GPoliciedLectureAnswerExt for GPolicied<LectureAnswer> {
+    fn get_id(&self) -> &u64 {
+        &self.unsafe_borrow_inner().id
+    }
+    fn get_user(&self) -> &String {
+        &self.unsafe_borrow_inner().user
+    }
+    fn get_answer(&self) -> GPolicied<&String> {
+        (&self.unsafe_borrow_inner().answer).policied_with(self.get_policy().clone())
+    }
+    fn get_time(&self) -> GPolicied<&Option<NaiveDateTime>> {
+        (&self.unsafe_borrow_inner().time).policied_with(self.get_policy().clone())
+    }
 }
 
 #[derive(Serialize)]
@@ -154,25 +183,23 @@ pub(crate) fn answers(
 ) -> Template {
     let mut bg = backend.lock().unwrap();
     let key: Value = (num as u64).into();
-    let res = bg.query_exec("answers_by_lec", vec![key]);
+    let answers = bg.query_exec_policied("answers_by_lec", vec![key], 
+        |r, p| LectureAnswer {
+                id: from_value(r[2].clone()),
+                user: from_value(r[0].clone()),
+                answer: from_value(r[3].clone()),
+                time: if let Value::Time(..) = r[4] {
+                    Some(from_value::<NaiveDateTime>(r[4].clone()))
+                } else {
+                    None
+                },
+            }.policied_with(p)
+        );
     drop(bg);
-    let answers: Vec<_> = res
-        .into_iter()
-        .map(|r| LectureAnswer {
-            id: from_value(r[2].clone()),
-            user: from_value(r[0].clone()),
-            answer: from_value(r[3].clone()),
-            time: if let Value::Time(..) = r[4] {
-                Some(from_value::<NaiveDateTime>(r[4].clone()))
-            } else {
-                None
-            },
-        })
-        .collect();
 
     let ctx = LectureAnswersContext {
         lec_id: num,
-        answers: answers,
+        answers: answers.externalize_policy().export_check(&beaver::filter::Context::CustomContext(Box::new(_admin))).unwrap(),
         parent: "layout",
     };
     Template::render("answers", &ctx)
@@ -199,7 +226,7 @@ pub(crate) fn questions(
                 p,
             )
     );
-    let mut answers = PoliciedValHashMap::new();
+    let mut answers = HashMap::new().policied();
 
     for r in answers_res {
         answers.insert_kv(r);
@@ -218,14 +245,14 @@ pub(crate) fn questions(
                         prompt: from_value(r[2].clone()),
                         answer: answer,
                     }
-            ).apply(beaver::generic_policied::internalize_option(answer))
+            ).apply(answer.externalize_policy())
         })
         .collect();
-    qs.sort_by(|a, b| a.id().cmp(&b.id()));
+    qs.sort_by(|a, b| a.get_id().cmp(&b.get_id()));
 
     let ctx = LectureQuestionsContext {
         lec_id: num,
-        questions: beaver::generic_policied::internalize_vec(qs).export_check(&kv_ctx!()).unwrap(),
+        questions: qs.externalize_policy().export_check(&kv_ctx!("user" => apikey.user.clone(), "method" => "website")).unwrap(),
         parent: "layout",
     };
     Template::render("questions", &ctx)
@@ -242,8 +269,11 @@ pub(crate) fn questions_submit(
     let mut bg = backend.lock().unwrap();
     let vnum: Value = (num as u64).into();
     let ts: Value = Local::now().naive_local().into();
+    let data = data.policied_with(Box::new(AnswerPolicy { student_id: apikey.user.clone().into() }));
+    let answers : HashMap<u64, GPolicied<String>> = data.map(|d| d.into_inner().answers).internalize_policy_2_1();
 
-    for (id, answer) in &data.answers {
+    for (id, answer) in &answers {
+        let (answer, policy) = answer.unsafe_borrow_decompose();
         let rec: Vec<Value> = vec![
             apikey.user.clone().into(),
             vnum.clone(),
@@ -251,21 +281,20 @@ pub(crate) fn questions_submit(
             answer.clone().into(),
             ts.clone(),
         ];
-        bg.insert_or_update(
+        bg.insert_or_update_policied(
             "answers",
             rec,
             vec![(3, answer.clone().into()), (4, ts.clone())],
+            policy.as_ref()
         );
     }
 
-    let answer_log = format!(
-        "{}",
-        data.answers
-            .iter()
-            .map(|(i, t)| format!("Question {}:\n{}", i, t))
+    let answer_log =
+        answers.iter()
+            .map(|(i, t)| t.as_ref().map(|t| format!("Question {}:\n{}", i, t)))
             .collect::<Vec<_>>()
-            .join("\n-----\n")
-    );
+            .externalize_policy()
+            .map(|v| v.join("\n-----\n"));
     if config.send_emails {
         let recipients = if num < 90 {
             config.staff.clone()
@@ -278,7 +307,7 @@ pub(crate) fn questions_submit(
             apikey.user.clone(),
             recipients,
             format!("{} meeting {} questions", config.class, num),
-            answer_log,
+            answer_log.export_check(&kv_ctx!("method" => "email-notify", "role" => "staff")).unwrap(),
         )
         .expect("failed to send email");
     }

@@ -164,7 +164,7 @@ impl MySqlBackend {
         );*/
     }
 
-    pub fn insert_policied<P: beaver::policy::Policy + Serialize>(&mut self, table: &str, mut vals: Vec<Value>, policy : &P) {
+    pub fn insert_policied(&mut self, table: &str, mut vals: Vec<Value>, policy : &dyn beaver::policy::Policy) {
         vals.push(serde_json::to_string(policy).unwrap().to_value());
         self.insert(table, vals)
     }
@@ -204,12 +204,12 @@ impl MySqlBackend {
             .expect(&format!("failed to update {}, query {}!", table, q));
     }
 
-    pub fn insert_or_update_policied<P: beaver::policy::Policy + Serialize>(
+    pub fn insert_or_update_policied(
         &mut self,
         table: &str,
         mut rec: Vec<Value>,
         update_vals: Vec<(u64, Value)>,
-        policy: &P,
+        policy: &dyn beaver::policy::Policy,
     ) {
         rec.push(serde_json::to_string(policy).unwrap().to_value());
         self.insert_or_update(table, rec, update_vals)
