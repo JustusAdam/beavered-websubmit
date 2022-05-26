@@ -7,6 +7,7 @@ use sqlparser::ast::*;
 use serde::{Serialize, de::DeserializeOwned};
 
 use beaver::policy::Policied;
+use beaver::generic_policied::{GPolicied, AsPolicied};
 
 pub struct MySqlBackend {
     pub handle: mysql::Conn,
@@ -130,13 +131,13 @@ impl MySqlBackend {
         })
     }
 
-    pub fn query_exec_policied<V, F : FnMut(Vec<Value>, Box<dyn beaver::policy::Policy>) -> V>(&mut self, qname: &str, keys: Vec<Value>, mut deser: F) -> Vec<V> {
+    pub fn query_exec_policied<V, F : FnMut(Vec<Value>) -> V>(&mut self, qname: &str, keys: Vec<Value>, mut deser: F) -> Vec<GPolicied<V>> {
         self.query_exec_intern(
             qname,
             keys,
             |mut vals| {
                 let p = serde_json::from_str(&String::from_value(vals.pop().unwrap())).unwrap();
-                deser(vals, p)
+                deser(vals).policied_with(p)
             }
         )
     }
@@ -164,8 +165,9 @@ impl MySqlBackend {
         );*/
     }
 
-    pub fn insert_policied(&mut self, table: &str, mut vals: Vec<Value>, policy : &dyn beaver::policy::Policy) {
-        vals.push(serde_json::to_string(policy).unwrap().to_value());
+    pub fn insert_policied(&mut self, table: &str, val: GPolicied<Vec<Value>>) {
+        let (mut vals, policy) = val.unsafe_decompose();
+        vals.push(serde_json::to_string(policy.as_ref()).unwrap().to_value());
         self.insert(table, vals)
     }
     

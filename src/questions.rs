@@ -184,7 +184,7 @@ pub(crate) fn answers(
     let mut bg = backend.lock().unwrap();
     let key: Value = (num as u64).into();
     let answers = bg.query_exec_policied("answers_by_lec", vec![key], 
-        |r, p| LectureAnswer {
+        |r| LectureAnswer {
                 id: from_value(r[2].clone()),
                 user: from_value(r[0].clone()),
                 answer: from_value(r[3].clone()),
@@ -193,7 +193,7 @@ pub(crate) fn answers(
                 } else {
                     None
                 },
-            }.policied_with(p)
+            }
         );
     drop(bg);
 
@@ -219,12 +219,9 @@ pub(crate) fn questions(
     let answers_res = bg.query_exec_policied(
         "my_answers_for_lec",
         vec![(num as u64).into(), apikey.user.clone().into()],
-        |e, p| 
-            GPolicied::make(
-                (from_value(e[2].clone()),
-                from_value(e[3].clone())),
-                p,
-            )
+        |e| 
+            (from_value(e[2].clone()),
+            from_value(e[3].clone())),
     );
     let mut answers = HashMap::new().policied();
 

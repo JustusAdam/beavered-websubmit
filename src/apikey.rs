@@ -15,6 +15,8 @@ use rocket_dyn_templates::Template;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
+use beaver::generic_policied::AsPolicied;
+
 /// (username, apikey)
 pub(crate) struct ApiKey {
     pub user: String,
@@ -36,6 +38,28 @@ pub(crate) enum ApiKeyError {
     Ambiguous,
     Missing,
     BackendFailure,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+struct UserInfoPolicy {
+    user_id: String,
+}
+
+#[typetag::serde]
+impl beaver::policy::Policy for UserInfoPolicy {
+    fn check(&self, ctxt: &beaver::filter::Context) -> Result<(), beaver::policy::PolicyError> {
+        match ctxt {
+            beaver::filter::Context::CustomContext(any) if any.is::<crate::admin::Admin>() => Ok(()),
+            beaver::filter::Context::KVContext(m) if (m.get("user") == Some(&self.user_id)) => Ok(()),
+            _ => Err(beaver::policy::PolicyError { message: "nope".to_string() })
+        }
+    }
+    fn merge(&self, other: &Box<dyn beaver::policy::Policy>) -> Result<Box<dyn beaver::policy::Policy>, beaver::policy::PolicyError> {
+        Ok(Box::new(beaver::policy::MergePolicy::make( 
+            Box::new(self.clone()),
+            other.clone(),
+        ))) 
+    }
 }
 
 #[rocket::async_trait]
@@ -80,9 +104,11 @@ pub(crate) fn generate(
 
     // insert into MySql if not exists
     let mut bg = backend.lock().unwrap();
-    bg.insert(
+    bg.insert_policied(
         "users",
-        vec![data.email.as_str().into(), hash.as_str().into(), is_admin],
+        vec![data.email.as_str().into(), hash.as_str().into(), is_admin].policied_with(
+            Box::new(UserInfoPolicy { user_id: hash.clone() })
+        )
     );
 
     if config.send_emails {
