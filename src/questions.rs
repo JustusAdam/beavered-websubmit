@@ -193,6 +193,16 @@ pub(crate) fn questions_submit(
     backend: &State<Arc<Mutex<MySqlBackend>>>,
     config: &State<Config>,
 ) -> Redirect {
+    questions_submit_internal(apikey, num, data, backend, config)
+}
+#[dfpp::analyze]
+pub(crate) fn questions_submit_internal(
+    apikey: ApiKey,
+    num: u8,
+    data: Form<LectureQuestionSubmission>,
+    backend: &State<Arc<Mutex<MySqlBackend>>>,
+    config: &State<Config>,
+) -> Redirect {
     let mut bg = backend.lock().unwrap();
     let vnum: Value = (num as u64).into();
     let ts: Value = Local::now().naive_local().into();

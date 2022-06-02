@@ -1,3 +1,6 @@
+#![feature(register_tool)]
+#![register_tool(dfpp)]
+
 extern crate clap;
 extern crate mysql;
 #[macro_use]

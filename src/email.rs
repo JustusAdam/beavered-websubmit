@@ -2,6 +2,7 @@ use lettre::sendmail::SendmailTransport;
 use lettre::Transport;
 use lettre_email::Email;
 
+#[dfpp::sink]
 pub(crate) fn send(
     log: slog::Logger,
     sender: String,
