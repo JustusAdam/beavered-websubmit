@@ -17,6 +17,7 @@ use std::sync::{Arc, Mutex};
 //   Invalid,
 //}
 
+#[dfpp::sensitive]
 #[derive(Debug, FromForm)]
 pub(crate) struct LectureQuestionSubmission {
     answers: HashMap<u64, String>,
