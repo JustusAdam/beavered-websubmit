@@ -102,4 +102,11 @@ impl MySqlBackend {
     pub fn replace(&mut self, table: &str, vals: Vec<Value>) {
         self.do_insert(table, vals, true);
     }
+
+    #[dfpp::sink]
+    pub fn delete(&mut self, table: &str, criteria: &[(&str, Value)]) {
+        let (where_parts, vals): (Vec<_>, Vec<_>) = criteria.iter().map(|(id, v)| (format!("{id} = ?"), v)).unzip();
+        let where_ = where_parts.join(" AND ");
+        self.handle.exec_drop(&format!("DELETE FROM {table} WHERE {where_}"), vals).unwrap();
+    }
 }

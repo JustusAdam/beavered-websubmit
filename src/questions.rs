@@ -40,6 +40,7 @@ pub(crate) struct LectureQuestionsContext {
 #[derive(Serialize)]
 struct LectureAnswer {
     id: u64,
+    lec: u64,
     user: String,
     answer: String,
     time: Option<NaiveDateTime>,
@@ -108,20 +109,22 @@ pub(crate) fn leclist(
     Template::render("leclist", &ctx)
 }
 
-#[get("/<num>")]
-pub(crate) fn answers(
-    _admin: Admin,
-    num: u8,
-    backend: &State<Arc<Mutex<MySqlBackend>>>,
-) -> Template {
-    let mut bg = backend.lock().unwrap();
-    let key: Value = (num as u64).into();
-    let res = bg.prep_exec("SELECT * FROM answers WHERE lec = ?", vec![key]);
-    drop(bg);
-    let answers: Vec<_> = res
+pub enum Either<A,B> {
+    Left(A),
+    Right(B),
+}
+
+fn get_answers(bg: &MySqlBackend, key: Either<u64, &str>) -> Vec<LectureAnswer> {
+    let (where_, key) = match key {
+        Either::Left(lec) => ("lec", lec.into()),
+        Either::Right(usr) => ("email", usr.into()),
+    };
+    let res = bg.prep_exec(format!("SELECT * FROM answers WHERE {where_} = ?"), vec![key]);
+    res
         .into_iter()
         .map(|r| LectureAnswer {
             id: from_value(r[2].clone()),
+            lec: from_value(r[1].clone()),
             user: from_value(r[0].clone()),
             answer: from_value(r[3].clone()),
             time: if let Value::Time(..) = r[4] {
@@ -130,8 +133,18 @@ pub(crate) fn answers(
                 None
             },
         })
-        .collect();
+        .collect()
+}
 
+#[get("/<num>")]
+pub(crate) fn answers(
+    _admin: Admin,
+    num: u8,
+    backend: &State<Arc<Mutex<MySqlBackend>>>,
+) -> Template {
+    let mut bg = backend.lock().unwrap();
+    let answers = get_answers(&bg, Either::Left(num as u64));
+    drop(bg);
     let ctx = LectureAnswersContext {
         lec_id: num,
         answers: answers,
@@ -184,6 +197,30 @@ pub(crate) fn questions(
         parent: "layout",
     };
     Template::render("questions", &ctx)
+}
+
+impl LectureAnswer {
+    fn delete(self, bg: &MySqlBackend) {
+        bg.delete("answers", &[("lec", self.lec.into()), ("q", self.id.into()), ("email", self.user.into())]);
+    }
+}
+
+impl ApiKey {
+    fn delete(self, bg: &MySqlBackend) {
+        bg.delete("users", &[("email", self.user.into())])
+    }
+}
+
+#[dfpp::analyze]
+#[post("/forget")]
+pub(crate) fn forget_user(apikey: ApiKey, backend: &State<Arc<Mutex<MySqlBackend>>>) -> Redirect {
+    let mut bg = backend.lock().unwrap();
+    let answers = get_answers(&bg, Either::Right(&apikey.user));
+    for answer in answers {
+        answer.delete(&bg);
+    }
+    apikey.delete(&bg);
+    Redirect::to("/")
 }
 
 #[post("/<num>", data = "<data>")]
