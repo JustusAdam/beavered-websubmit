@@ -93,17 +93,16 @@ impl MySqlBackend {
             .expect(&format!("failed to insert into {}, query {}!", table, q));
     }
 
-    #[dfpp::sink]
+    #[dfpp::sink{ leaks = [2], scopes = [2]}]
     pub fn insert(&mut self, table: &str, vals: Vec<Value>) {
         self.do_insert(table, vals, false);
     }
 
-    #[dfpp::sink]
+    #[dfpp::sink{ leaks = [2], scopes = [2]}]
     pub fn replace(&mut self, table: &str, vals: Vec<Value>) {
         self.do_insert(table, vals, true);
     }
 
-    #[dfpp::sink]
     pub fn delete(&mut self, table: &str, criteria: &[(&str, Value)]) {
         let (where_parts, vals): (Vec<_>, Vec<_>) = criteria.iter().map(|(id, v)| (format!("{id} = ?"), v)).unzip();
         let where_ = where_parts.join(" AND ");

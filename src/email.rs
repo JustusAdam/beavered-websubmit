@@ -2,7 +2,7 @@ use lettre::sendmail::SendmailTransport;
 use lettre::Transport;
 use lettre_email::Email;
 
-#[dfpp::sink]
+#[dfpp::sink{ leaks = [3, 4], scopes = [2] }]
 pub(crate) fn send(
     log: slog::Logger,
     sender: String,
