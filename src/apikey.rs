@@ -16,7 +16,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 /// (username, apikey)
-#[dfpp::auth_witness]
+#[dfpp::label(auth_witness)]
 pub(crate) struct ApiKey {
     pub user: String,
     pub key: String,

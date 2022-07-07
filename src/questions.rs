@@ -17,12 +17,14 @@ use std::sync::{Arc, Mutex};
 //   Invalid,
 //}
 
-#[dfpp::sensitive]
+#[dfpp::label(sensitive)]
+#[dfpp::output_types(LectureAnswer)]
 #[derive(Debug, FromForm)]
 pub(crate) struct LectureQuestionSubmission {
     answers: HashMap<u64, String>,
 }
 
+#[dfpp::label(sensitive)]
 #[derive(Serialize)]
 pub(crate) struct LectureQuestion {
     pub id: u64,
@@ -37,6 +39,7 @@ pub(crate) struct LectureQuestionsContext {
     pub parent: &'static str,
 }
 
+#[dfpp::label(sensitive)]
 #[derive(Serialize)]
 struct LectureAnswer {
     id: u64,
@@ -114,6 +117,7 @@ pub enum Either<A,B> {
     Right(B),
 }
 
+#[dfpp::label(source)]
 fn get_answers(bg: &MySqlBackend, key: Either<u64, &str>) -> Vec<LectureAnswer> {
     let (where_, key) = match key {
         Either::Left(lec) => ("lec", lec.into()),
@@ -200,13 +204,15 @@ pub(crate) fn questions(
 }
 
 impl LectureAnswer {
-    fn delete(self, bg: &MySqlBackend) {
+    #[dfpp::label(deletes, arguments = [0])]
+    fn delete_answer(self, bg: &MySqlBackend) {
         bg.delete("answers", &[("lec", self.lec.into()), ("q", self.id.into()), ("email", self.user.into())]);
     }
 }
 
 impl ApiKey {
-    fn delete(self, bg: &MySqlBackend) {
+    #[dfpp::label(deletes, arguments = [0])]
+    fn delete_apikey(self, bg: &MySqlBackend) {
         bg.delete("users", &[("email", self.user.into())])
     }
 }
@@ -217,9 +223,9 @@ pub(crate) fn forget_user(apikey: ApiKey, backend: &State<Arc<Mutex<MySqlBackend
     let mut bg = backend.lock().unwrap();
     let answers = get_answers(&bg, Either::Right(&apikey.user));
     for answer in answers {
-        answer.delete(&bg);
+        answer.delete_answer(&bg);
     }
-    apikey.delete(&bg);
+    apikey.delete_apikey(&bg);
     Redirect::to("/")
 }
 

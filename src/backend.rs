@@ -56,7 +56,7 @@ impl MySqlBackend {
         })
     }
 
-    #[dfpp::source]
+    #[dfpp::label(source)]
     pub fn prep_exec(&mut self, sql: &str, params: Vec<Value>) -> Vec<Vec<Value>> {
         if !self.prep_stmts.contains_key(sql) {
             let stmt = self
@@ -93,12 +93,14 @@ impl MySqlBackend {
             .expect(&format!("failed to insert into {}, query {}!", table, q));
     }
 
-    #[dfpp::sink{ leaks = [2], scopes = [2]}]
+    #[dfpp::label{ stores, arguments = [2] }]
+    #[dfpp::label{ scopes, arguments = [2] }]
     pub fn insert(&mut self, table: &str, vals: Vec<Value>) {
         self.do_insert(table, vals, false);
     }
 
-    #[dfpp::sink{ leaks = [2], scopes = [2]}]
+    #[dfpp::label{ stores, arguments = [2] }]
+    #[dfpp::label{ scopes, arguments = [2] }]
     pub fn replace(&mut self, table: &str, vals: Vec<Value>) {
         self.do_insert(table, vals, true);
     }
