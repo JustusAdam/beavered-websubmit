@@ -1,4 +1,5 @@
 #![feature(register_tool)]
+#![feature(stmt_expr_attributes)]
 #![register_tool(dfpp)]
 
 extern crate clap;

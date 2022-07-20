@@ -277,13 +277,14 @@ pub(crate) fn questions_submit_internal(
             config.admins.clone()
         };
 
+        (#[dfpp::label(exception, arguments = [2])]
         email::send(
             bg.log.clone(),
             apikey.user.clone(),
             recipients,
             format!("{} meeting {} questions", config.class, num),
             answer_log,
-        )
+        ))
         .expect("failed to send email");
     }
     drop(bg);
