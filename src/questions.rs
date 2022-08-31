@@ -277,7 +277,7 @@ pub(crate) fn questions_submit_internal(
             config.admins.clone()
         };
 
-        (#[dfpp::label(exception, arguments = [2])]
+        (#[dfpp::exception(verification_hash = "70504414258250763925326951367016228295")]
         email::send(
             bg.log.clone(),
             apikey.user.clone(),
