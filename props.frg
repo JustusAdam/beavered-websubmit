@@ -43,7 +43,7 @@ pred outputs_to_authorized {
 pred outputs_to_authorized_with_exception {
     all c: Ctrl, a : labeled_objects[Arg + Type, sensitive], f : Fn | 
         (some r : labeled_objects[arguments[f], sink] | flows_to[c, a, r]) 
-        implies authorized[recipients[f, c], c] or exception in labeled_objects[arguments[f], scopes].labels
+        implies authorized[recipients[f, c], c] or exception in f.labels
 }
 
 pred stores_to_authorized {
