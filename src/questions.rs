@@ -229,6 +229,7 @@ pub(crate) fn forget_user(apikey: ApiKey, backend: &State<Arc<Mutex<MySqlBackend
     Redirect::to("/")
 }
 
+
 #[post("/<num>", data = "<data>")]
 pub(crate) fn questions_submit(
     apikey: ApiKey,
@@ -251,6 +252,13 @@ pub(crate) fn questions_submit_internal(
     let vnum: Value = (num as u64).into();
     let ts: Value = Local::now().naive_local().into();
 
+    let mut presenter_emails = vec![];
+    let presenters_res = bg.prep_exec("SELECT * FROM presenters WHERE lec = ?;", vec![num.into()]);
+    for p in presenters_res {
+        let email: String = from_value(p[1].clone());
+        presenter_emails.push(email);
+    }
+
     for (id, answer) in &data.answers {
         let rec: Vec<Value> = vec![
             apikey.user.clone().into(),
@@ -260,13 +268,6 @@ pub(crate) fn questions_submit_internal(
             ts.clone(),
         ];
         bg.replace("answers", rec);
-    }
-
-    let mut presenter_emails = vec![];
-    let presenters_res = bg.prep_exec("SELECT * FROM presenters WHERE lec = ?;", vec![num.into()]);
-    for p in presenters_res {
-        let email: String = from_value(p[1].clone());
-        presenter_emails.push(email);
     }
 
     let answer_log = format!(
@@ -284,9 +285,10 @@ pub(crate) fn questions_submit_internal(
             config.admins.clone()
         };
 
+
         recipients.append(&mut presenter_emails);
 
-        (#[dfpp::exception(verification_hash = "70504414258250763925326951367016228295")]
+        (#[dfpp::exception(verification_hash = "c9646082927d9b506a3cb7531aac39e4")]
         email::send(
             bg.log.clone(),
             apikey.user.clone(),

@@ -85,9 +85,8 @@ test expect {
     outputs_are_safe: {
         Flows 
         not outputs_to_authorized
-
     } is sat // we expect this property to be broken
     outputs_are_safe_with_exception: {
-        Flows implies outputs_to_authorized_with_exception
+       Flows implies outputs_to_authorized_with_exception
     } is theorem 
 }
