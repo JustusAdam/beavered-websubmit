@@ -2,6 +2,7 @@ use std::fs;
 use std::io::{Error, ErrorKind, Read};
 use toml;
 
+#[dfpp::label(safe_source)]
 #[derive(Debug, Clone)]
 pub struct Config {
     /// Textual identifier for class

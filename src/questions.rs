@@ -230,6 +230,20 @@ pub(crate) fn forget_user(apikey: ApiKey, backend: &State<Arc<Mutex<MySqlBackend
 }
 
 
+#[dfpp::label(presenter)]
+struct Presenters{ presenters: Vec<String> }
+
+#[dfpp::label(safe_source)]
+fn get_presenters(bg: &MySqlBackend, num: u8) -> Presenters {
+    let mut presenter_emails = vec![];
+    let presenters_res = bg.prep_exec("SELECT * FROM presenters WHERE lec = ?;", vec![num.into()]);
+    for p in presenters_res {
+        let email: String = from_value(p[1].clone());
+        presenter_emails.push(email);
+    }
+    presenter_emails
+}
+
 #[post("/<num>", data = "<data>")]
 pub(crate) fn questions_submit(
     apikey: ApiKey,
@@ -252,12 +266,7 @@ pub(crate) fn questions_submit_internal(
     let vnum: Value = (num as u64).into();
     let ts: Value = Local::now().naive_local().into();
 
-    let mut presenter_emails = vec![];
-    let presenters_res = bg.prep_exec("SELECT * FROM presenters WHERE lec = ?;", vec![num.into()]);
-    for p in presenters_res {
-        let email: String = from_value(p[1].clone());
-        presenter_emails.push(email);
-    }
+    let mut presenter_emails = get_presenters(&bg, num).presenters;
 
     for (id, answer) in &data.answers {
         let rec: Vec<Value> = vec![
@@ -288,17 +297,17 @@ pub(crate) fn questions_submit_internal(
 
         recipients.append(&mut presenter_emails);
 
-        (#[dfpp::exception(verification_hash = "c9646082927d9b506a3cb7531aac39e4")]
+        //println!("");
         email::send(
             bg.log.clone(),
             apikey.user.clone(),
             recipients,
             format!("{} meeting {} questions", config.class, num),
             answer_log,
-        ))
+        )
         .expect("failed to send email");
     }
-    drop(bg);
-
+    //drop(bg);
+    //presenter_emails.push("".to_string());
     Redirect::to("/leclist")
 }
