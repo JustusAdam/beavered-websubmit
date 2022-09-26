@@ -3,7 +3,7 @@
 open "analysis_result.frg"
 
 
-pred flows_to[cs: Ctrl, o: Object, f : CallSite] {
+pred flows_to[cs: Ctrl, o: Object, f : CallArgument] {
     some c: cs |
     some a : Src | {
         o = a or o in Type and a->o in c.types
@@ -15,7 +15,7 @@ fun labeled_objects[obs: Object, ls: Label] : set Object {
     labels.ls & obs
 }
 
-fun recipients[f: Fn, ctrl: Ctrl] : set Src {
+fun recipients[f: Function, ctrl: Ctrl] : set Src {
     ctrl.flow.(labeled_objects[arguments[f], scopes])
 }
 
@@ -23,36 +23,36 @@ pred authorized[principal: Src, c: Ctrl] {
     some principal & c.types.(labeled_objects[Type, auth_witness])
 }
 
-fun arguments[f : Fn] : set CallSite {
+fun arguments[f : Function] : set CallArgument {
     function.f
 }
 
 pred one_deleter {
     some c:Ctrl |
     all t: Type |
-        sensitive in t.labels and (some f: labeled_objects[CallSite, stores] | flows_to[Ctrl, t, f])
-        implies (some f: labeled_objects[CallSite, deletes], ot: t.otype + t | flows_to[c, ot, f] )
+        sensitive in t.labels and (some f: labeled_objects[CallArgument, stores] | flows_to[Ctrl, t, f])
+        implies (some f: labeled_objects[CallArgument, deletes], ot: t.otype + t | flows_to[c, ot, f] )
 }
 
 pred outputs_to_authorized {
-    all c: Ctrl, a : labeled_objects[Arg + Type, sensitive], f : Fn | 
+    all c: Ctrl, a : labeled_objects[InputArgument + Type, sensitive], f : Function | 
         (some r : labeled_objects[arguments[f], sink] | flows_to[c, a, r]) 
         implies authorized[recipients[f, c], c]
 }
 
 pred outputs_to_authorized_with_exception {
-    all c: Ctrl, a : labeled_objects[Arg + Type, sensitive], f : Fn | 
+    all c: Ctrl, a : labeled_objects[InputArgument + Type, sensitive], f : Function | 
         (some r : labeled_objects[arguments[f], sink] | flows_to[c, a, r]) 
         implies authorized[recipients[f, c], c] or exception in f.labels
 }
 
 pred stores_to_authorized {
-    all c: Ctrl, a : labeled_objects[Arg + Type, sensitive], f : Fn | 
+    all c: Ctrl, a : labeled_objects[InputArgument + Type, sensitive], f : Function | 
         (some r : labeled_objects[arguments[f], stores] | flows_to[c, a, r]) 
         implies authorized[recipients[f, c], c]
 }
 
-fun recipients_all[f: Fn, ctrl: Ctrl] : set Src {
+fun recipients_all[f: Function, ctrl: Ctrl] : set Src {
     ctrl.flow.(labeled_objects[arguments[f], scopes])
 }
 
@@ -61,7 +61,7 @@ pred authorized_all[principal: Src, c: Ctrl] {
 }
 
 pred outputs_to_authorized_all {
-    all c: Ctrl, a : labeled_objects[Arg + Type, sensitive], f : send | 
+    all c: Ctrl, a : labeled_objects[InputArgument + Type, sensitive], f : send | 
         (some r : labeled_objects[arguments[f], sink] | flows_to[c, a, r]) 
         implies authorized_all[recipients_all[f, c], c]
 }
@@ -71,7 +71,7 @@ pred authorized_all0[principal: Src, c: Ctrl] {
 }
 
 pred outputs_to_authorized_all0 {
-    all c: Ctrl, a : labeled_objects[Arg + Type, sensitive], f : send | 
+    all c: Ctrl, a : labeled_objects[InputArgument + Type, sensitive], f : send | 
         (some r : labeled_objects[arguments[f], sink] | flows_to[c, a, r]) 
         implies authorized_all0[recipients_all[f, c], c]
 }
@@ -80,6 +80,10 @@ test expect {
     vacuity_Flows: {
         Flows
     } is sat
+}
+
+run {
+    Flows
 }
 test expect {
     new_authorization_fails_without_safe_presenter_source: {
@@ -96,13 +100,13 @@ expect {
         Flows
         some c:Ctrl |
         some t: Type |
-            sensitive in t.labels and (some f: labeled_objects[CallSite, stores] | flows_to[Ctrl, t, f])
+            sensitive in t.labels and (some f: labeled_objects[CallArgument, stores] | flows_to[Ctrl, t, f])
     } is sat
 }
 expect {
     vacuity_outputs_to_authorized_premise: {
         Flows
-        some c: Ctrl, a : labeled_objects[Arg + Type, sensitive], f : Fn | 
+        some c: Ctrl, a : labeled_objects[InputArgument + Type, sensitive], f : Function | 
             (some r : labeled_objects[arguments[f], sink] | flows_to[c, a, r]) 
     } is sat
 
