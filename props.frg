@@ -61,68 +61,64 @@ pred authorized_all[principal: Src, c: Ctrl] {
 }
 
 pred outputs_to_authorized_all {
-    all c: Ctrl, a : labeled_objects[InputArgument + Type, sensitive], f : function.send | 
+    all c: Ctrl, a : labeled_objects[InputArgument + Type, sensitive], f : CallSite | 
         (some r : labeled_objects[arguments[f], sink] | flows_to[c, a, r]) 
         implies authorized_all[recipients_all[f, c], c]
 }
+
 
 pred authorized_all0[principal: Src, c: Ctrl] {
     principal in c.types.(labeled_objects[Type, auth_witness + safe_source])
 }
 
 pred outputs_to_authorized_all0 {
-    all c: Ctrl, a : labeled_objects[InputArgument + Type, sensitive], f : function.send | 
+    all c: Ctrl, a : labeled_objects[InputArgument + Type, sensitive], f : CallSite | 
         (some r : labeled_objects[arguments[f], sink] | flows_to[c, a, r]) 
         implies authorized_all0[recipients_all[f, c], c]
 }
 
-expect {
+test expect {
     vacuity_Flows: {
-        Flows
-    } is sat
+    } for Flows is sat
 }
 
 // Somehow this vacuity test passes, but the test for a failing property does
 // not. Curiously also when I drop the premise into the evaluator it comes up
 // empty.
-expect {
+test expect {
     vacuity_outputs_to_authorized_premise: {
-        Flows
-        some c: Ctrl, a : labeled_objects[InputArgument + Type, sensitive], f : function.send | 
+        some c: Ctrl, a : labeled_objects[InputArgument + Type, sensitive], f : CallSite | 
             (some r : labeled_objects[arguments[f], sink] | flows_to[c, a, r]) 
-    } is sat
+    } for Flows is sat
     new_authorization_fails_without_safe_presenter_source: {
-        Flows 
         not outputs_to_authorized_all0
-    } is sat
+    } for Flows is sat
 }
 expect {
     new_authorization: {
-        Flows implies outputs_to_authorized_all
-    } is theorem
-}
-
-expect {
-    vacuity_one_deleter_premise: {
-        Flows
-        some c:Ctrl |
-        some t: Type |
-            sensitive in t.labels and (some f: labeled_objects[CallArgument, stores] | flows_to[Ctrl, t, f])
-    } is sat
+        outputs_to_authorized_all
+    } for Flows is theorem
 }
 
 
 test expect {
+    vacuity_one_deleter_premise: {
+        some c:Ctrl |
+        some t: Type |
+            sensitive in t.labels and (some f: labeled_objects[CallArgument, stores] | flows_to[Ctrl, t, f])
+    } for Flows is sat
+}
+
+test expect {
     data_is_deleted: {
-        Flows implies one_deleter
-    } is theorem
+        one_deleter
+    } for Flows is theorem
     stores_are_safe: {
-        Flows implies stores_to_authorized
-    } is theorem
+        stores_to_authorized
+    } for Flows is theorem
     outputs_are_safe: {
-        Flows 
         not outputs_to_authorized
-    } is sat
+    } for Flows is sat
     // outputs_are_safe_with_exception: {
     //    Flows implies outputs_to_authorized_with_exception
     // } is theorem 

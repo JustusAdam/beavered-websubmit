@@ -238,7 +238,7 @@ fn get_presenters(bg: &mut MySqlBackend, num: u8) -> Vec<String> {
         let email: String = from_value(p[1].clone());
         presenter_emails.push(email);
     }
-    Presenters { presenters: presenter_emails }
+    presenter_emails
 }
 
 #[post("/<num>", data = "<data>")]
