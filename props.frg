@@ -7,7 +7,7 @@ pred flows_to[cs: Ctrl, o: Object, f : CallArgument] {
     some c: cs |
     some a : Src | {
         o = a or o in Type and a->o in c.types
-        a -> f in c.flow
+        a -> f in ^(c.flow + arg_call_site)
     }
 }
 
@@ -101,6 +101,7 @@ expect {
 }
 
 
+// This fails. Unsure why.
 test expect {
     vacuity_one_deleter_premise: {
         some c:Ctrl |
