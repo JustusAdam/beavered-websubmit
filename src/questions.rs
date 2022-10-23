@@ -229,19 +229,16 @@ pub(crate) fn forget_user(apikey: ApiKey, backend: &State<Arc<Mutex<MySqlBackend
     Redirect::to("/")
 }
 
-
-#[dfpp::label(presenter)]
-struct Presenters{ presenters: Vec<String> }
-
 #[dfpp::label(safe_source)]
-fn get_presenters(bg: &mut MySqlBackend, num: u8) -> Presenters {
+#[dfpp::label(presenter, return)]
+fn get_presenters(bg: &mut MySqlBackend, num: u8) -> Vec<String> {
     let mut presenter_emails = vec![];
     let presenters_res = bg.prep_exec("SELECT * FROM presenters WHERE lec = ?;", vec![num.into()]);
     for p in presenters_res {
         let email: String = from_value(p[1].clone());
         presenter_emails.push(email);
     }
-    Presenters { presenters: presenter_emails }
+    presenter_emails
 }
 
 #[post("/<num>", data = "<data>")]
@@ -266,7 +263,7 @@ pub(crate) fn questions_submit_internal(
     let vnum: Value = (num as u64).into();
     let ts: Value = Local::now().naive_local().into();
 
-    let mut presenter_emails = get_presenters(&mut bg, num).presenters;
+    let mut presenter_emails = get_presenters(&mut bg, num);
 
     for (id, answer) in &data.answers {
         let rec: Vec<Value> = vec![
