@@ -27,6 +27,17 @@ fun arguments[f : CallSite] : set CallArgument {
     arg_call_site.f
 }
 
+// verifies that for an type o, first always occurs before next
+pred always_happens_before[cs: Ctrl, o: Object, first: Function, next: Function] {
+    not (
+        some c: cs | 
+        some a: Src | {
+            o = a or o in Type and a->o in c.types
+            a -> next in ^(c.flow + arg_call_site + function - CallArgument->(function.first))
+        }
+    )
+}
+
 pred one_deleter {
     some c:Ctrl |
     all t: Type |
