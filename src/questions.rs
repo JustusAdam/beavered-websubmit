@@ -229,7 +229,7 @@ pub(crate) fn forget_user(apikey: ApiKey, backend: &State<Arc<Mutex<MySqlBackend
     Redirect::to("/")
 }
 
-#[dfpp::label(safe_source)]
+#[dfpp::label(safe_source, return)]
 #[dfpp::label(presenter, return)]
 fn get_presenters(bg: &mut MySqlBackend, num: u8) -> Vec<String> {
     let mut presenter_emails = vec![];
@@ -239,6 +239,16 @@ fn get_presenters(bg: &mut MySqlBackend, num: u8) -> Vec<String> {
         presenter_emails.push(email);
     }
     presenter_emails
+}
+
+#[dfpp::label(safe_source, return)]
+fn get_staff(config: &State<Config>, num: u8) -> Vec<String> {
+    let recipients = if num < 90 {
+        config.staff.clone()
+    } else {
+        config.admins.clone()
+    };
+    recipients
 }
 
 #[post("/<num>", data = "<data>")]
@@ -285,12 +295,7 @@ pub(crate) fn questions_submit_internal(
             .join("\n-----\n")
     );
     if config.send_emails {
-        let mut recipients = if num < 90 {
-            config.staff.clone()
-        } else {
-            config.admins.clone()
-        };
-
+        let mut recipients = get_staff(config, num);
 
         recipients.append(&mut presenter_emails);
 

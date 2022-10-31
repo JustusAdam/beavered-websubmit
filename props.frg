@@ -27,15 +27,23 @@ fun arguments[f : CallSite] : set CallArgument {
     arg_call_site.f
 }
 
-// verifies that for an type o, first always occurs before next
-pred always_happens_before[cs: Ctrl, o: Object, first: Function, next: Function] {
+// verifies that for an type o, it flows into first before flowing into next
+pred always_happens_before[cs: Ctrl, o: Object, first: CallArgument, next: CallArgument] {
     not (
         some c: cs | 
         some a: Src | {
             o = a or o in Type and a->o in c.types
-            a -> next in ^(c.flow + arg_call_site + function - CallArgument->(function.first))
+            a -> next in ^(c.flow + arg_call_site - first->CallSite)
         }
     )
+}
+
+// TODO: This property is not tested.
+pred only_send_to_allowed_sources {
+    all c: Ctrl, o : Object, scope : labeled_objects[CallArgument, scopes] |
+        flows_to[c, o, scope]
+        implies (some safe : labeled_objects[CallSite, safe_source] |
+            always_happens_before[c, o, safe, scope] or always_happens_before[c, safe, o, scope])
 }
 
 pred one_deleter {
@@ -110,7 +118,6 @@ expect {
         outputs_to_authorized_all
     } for Flows is theorem
 }
-
 
 // This fails. Unsure why.
 test expect {
