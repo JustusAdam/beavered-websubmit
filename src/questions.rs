@@ -299,9 +299,6 @@ pub(crate) fn questions_submit_internal(
 
         recipients.append(&mut presenter_emails);
 
-        let mut evil = vec!["livia_zhu@brown.edu".to_owned()];
-        recipients.append(&mut evil);
-
         //println!("");
         email::send(
             bg.log.clone(),
