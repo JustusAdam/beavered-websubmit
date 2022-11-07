@@ -3,9 +3,9 @@
 open "analysis_result.frg"
 
 
-pred flows_to[cs: Ctrl, o: Object, f : CallArgument] {
+pred flows_to[cs: Ctrl, o: Object, f : (CallArgument + CallSite)] {
     some c: cs |
-    some a : Src | {
+    some a : Object | {
         o = a or o in Type and a->o in c.types
         a -> f in ^(c.flow + arg_call_site)
     }
@@ -28,22 +28,26 @@ fun arguments[f : CallSite] : set CallArgument {
 }
 
 // verifies that for an type o, it flows into first before flowing into next
-pred always_happens_before[cs: Ctrl, o: Object, first: CallArgument, next: CallArgument] {
+pred always_happens_before[cs: Ctrl, o: Object, first: (CallArgument + CallSite), next: (CallArgument + CallSite)] {
     not (
         some c: cs | 
-        some a: Src | {
+        some a: Object | {
             o = a or o in Type and a->o in c.types
-            a -> next in ^(c.flow + arg_call_site - first->CallSite)
+            a -> next in ^(c.flow + arg_call_site - 
+                (first->CallSite + CallArgument->first))
         }
     )
 }
 
-// TODO: This property is not tested.
 pred only_send_to_allowed_sources {
     all c: Ctrl, o : Object, scope : labeled_objects[CallArgument, scopes] |
         flows_to[c, o, scope]
-        implies (some safe : labeled_objects[CallSite, safe_source] |
-            always_happens_before[c, o, safe, scope] or always_happens_before[c, safe, o, scope])
+        implies {
+            (some o & labeled_objects[CallSite, safe_source]) // either it is safe itself
+            or always_happens_before[c, o, labeled_objects[CallSite, safe_source], scope] // obj must go through something in safe before scope
+            or (some safe : labeled_objects[CallSite, safe_source] |
+                flows_to[c, safe, o]) // safe must have flowed to obj at some point -- TODO: is this right?
+        }
 }
 
 pred one_deleter {
@@ -138,6 +142,9 @@ test expect {
     outputs_are_safe: {
         not outputs_to_authorized
     } for Flows is sat
+    only_send_to_allowed: {
+        only_send_to_allowed_sources
+    } for Flows is theorem
     // outputs_are_safe_with_exception: {
     //    Flows implies outputs_to_authorized_with_exception
     // } is theorem 
