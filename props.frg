@@ -46,7 +46,7 @@ pred only_send_to_allowed_sources {
             (some o & labeled_objects[CallSite, safe_source]) // either it is safe itself
             or always_happens_before[c, o, labeled_objects[CallSite, safe_source], scope] // obj must go through something in safe before scope
             or (some safe : labeled_objects[CallSite, safe_source] |
-                flows_to[c, safe, o]) // safe must have flowed to obj at some point -- TODO: is this right?
+                flows_to[c, safe, o]) // safe must have flowed to obj at some point
         }
 }
 
