@@ -100,7 +100,7 @@ impl MySqlBackend {
     }
 
     #[dfpp::label{ stores, arguments = [2] }]
-    #[dfpp::label{ scopes, arguments = [2] }]
+    // #[dfpp::label{ scopes, arguments = [2] }]
     pub fn replace(&mut self, table: &str, vals: Vec<Value>) {
         self.do_insert(table, vals, true);
     }
