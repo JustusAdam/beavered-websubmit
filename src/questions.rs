@@ -251,6 +251,11 @@ fn get_staff(config: &State<Config>, num: u8) -> Vec<String> {
     recipients
 }
 
+#[dfpp::label(scopes, return)]
+fn scopes<T>(field: T) -> T {
+    return field;
+}
+
 #[post("/<num>", data = "<data>")]
 pub(crate) fn questions_submit(
     apikey: ApiKey,
@@ -276,9 +281,9 @@ pub(crate) fn questions_submit_internal(
     let mut presenter_emails = get_presenters(&mut bg, num);
 
     for (id, answer) in &data.answers {
-        let rec: Vec<Value> = vec![
-            apikey.user.clone().into(),
-            vnum.clone(),
+        let rec: Vec<Value> = vec![ 
+            scopes(apikey.user.clone().into()),
+            scopes(vnum.clone()),
             (*id).into(),
             answer.clone().into(),
             ts.clone(),

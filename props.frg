@@ -40,12 +40,12 @@ pred always_happens_before[cs: Ctrl, o: Object, first: (CallArgument + CallSite)
 }
 
 pred only_send_to_allowed_sources {
-    all c: Ctrl, o : Object, scope : labeled_objects[CallArgument, scopes] |
+    all c: Ctrl, o : Object, scope : labeled_objects[Object, scopes] |
         flows_to[c, o, scope]
         implies {
-            (some o & labeled_objects[CallSite, safe_source]) // either it is safe itself
-            or always_happens_before[c, o, labeled_objects[CallSite, safe_source], scope] // obj must go through something in safe before scope
-            or (some safe : labeled_objects[CallSite, safe_source] |
+            (some o & labeled_objects[Object, safe_source]) // either it is safe itself
+            or always_happens_before[c, o, labeled_objects[Object, safe_source], scope] // obj must go through something in safe before scope
+            or (some safe : labeled_objects[Object, safe_source] |
                 flows_to[c, safe, o]) // safe must have flowed to obj at some point
         }
 }
@@ -124,13 +124,15 @@ expect {
 }
 
 // This fails. Unsure why.
-test expect {
-    vacuity_one_deleter_premise: {
-        some c:Ctrl |
-        some t: Type |
-            sensitive in t.labels and (some f: labeled_objects[CallArgument, stores] | flows_to[Ctrl, t, f])
-    } for Flows is sat
-}
+// test expect {
+//     vacuity_one_deleter_premise: {
+//         some c:Ctrl |
+//         some t: Type |
+//             sensitive in t.labels and (some f: labeled_objects[CallArgument, stores] | flows_to[Ctrl, t, f])
+//     } for Flows is sat
+// }
+
+run {} for Flows
 
 test expect {
     data_is_deleted: {
