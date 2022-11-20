@@ -283,7 +283,7 @@ pub(crate) fn questions_submit_internal(
     for (id, answer) in &data.answers {
         let rec: Vec<Value> = vec![ 
             scopes_argument(&apikey.user).into(),
-            vnum.clone(),
+            scopes_argument(&vnum.clone()), // THIS SHOULD RESULT IN FAILING only_send_to_allowed PROPERTY!
             (*id).into(),
             answer.clone().into(),
             ts.clone(),

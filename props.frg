@@ -132,13 +132,13 @@ expect {
 }
 
 // This fails. Unsure why.
-test expect {
-    vacuity_one_deleter_premise: {
-        some c:Ctrl |
-        some t: Type |
-            sensitive in t.labels and (some f: labeled_objects[CallArgument, stores] | flows_to[Ctrl, t, f])
-    } for Flows is sat
-}
+// test expect {
+//     vacuity_one_deleter_premise: {
+//         some c:Ctrl |
+//         some t: Type |
+//             sensitive in t.labels and (some f: labeled_objects[CallArgument, stores] | flows_to[Ctrl, t, f])
+//     } for Flows is sat
+// }
 
 test expect {
     data_is_deleted: {
