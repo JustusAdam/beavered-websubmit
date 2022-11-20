@@ -252,8 +252,8 @@ fn get_staff(config: &State<Config>, num: u8) -> Vec<String> {
 }
 
 #[dfpp::label(scopes, return)]
-fn scopes<T>(field: T) -> T {
-    return field;
+fn scopes_argument<T: Clone>(field: &T) -> T {
+    return field.clone();
 }
 
 #[post("/<num>", data = "<data>")]
@@ -282,8 +282,8 @@ pub(crate) fn questions_submit_internal(
 
     for (id, answer) in &data.answers {
         let rec: Vec<Value> = vec![ 
-            scopes(apikey.user.clone().into()),
-            scopes(vnum.clone()),
+            scopes_argument(&apikey.user).into(),
+            vnum.clone(),
             (*id).into(),
             answer.clone().into(),
             ts.clone(),

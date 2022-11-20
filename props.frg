@@ -7,12 +7,19 @@ pred flows_to[cs: Ctrl, o: Object, f : (CallArgument + CallSite)] {
     some c: cs |
     some a : Object | {
         o = a or o in Type and a->o in c.types
-        a -> f in ^(c.flow + arg_call_site)
+        some (c.flow.a + a.(c.flow)) // a exists in cs
+        and (a -> f in ^(c.flow + arg_call_site))
     }
 }
 
 fun labeled_objects[obs: Object, ls: Label] : set Object {
     labels.ls & obs
+}
+
+// Returns all objects labelled either directly or indirectly
+// through types.
+fun labeled_objects_with_types[cs: Ctrl, obs: Object, ls: Label] : set Object {
+    labeled_objects[obs, ls] + (cs.types).(labeled_objects[obs, ls])
 }
 
 fun recipients[f: CallSite, ctrl: Ctrl] : set Src {
@@ -40,14 +47,15 @@ pred always_happens_before[cs: Ctrl, o: Object, first: (CallArgument + CallSite)
 }
 
 pred only_send_to_allowed_sources {
-    all c: Ctrl, o : Object, scope : labeled_objects[Object, scopes] |
-        flows_to[c, o, scope]
-        implies {
-            (some o & labeled_objects[Object, safe_source]) // either it is safe itself
-            or always_happens_before[c, o, labeled_objects[Object, safe_source], scope] // obj must go through something in safe before scope
-            or (some safe : labeled_objects[Object, safe_source] |
-                flows_to[c, safe, o]) // safe must have flowed to obj at some point
-        }
+    all c: Ctrl, o : Object | 
+        all scope : labeled_objects_with_types[c, Object, scopes] |
+            flows_to[c, o, scope]
+            implies {
+                (some o & labeled_objects_with_types[c, Object, safe_source]) // either it is safe itself
+                or always_happens_before[c, o, labeled_objects_with_types[c, Object, safe_source], scope] // obj must go through something in safe before scope
+                or (some safe : labeled_objects_with_types[c, Object, safe_source] |
+                    flows_to[c, safe, o]) // safe must have flowed to obj at some point
+            }
 }
 
 pred one_deleter {
@@ -124,15 +132,13 @@ expect {
 }
 
 // This fails. Unsure why.
-// test expect {
-//     vacuity_one_deleter_premise: {
-//         some c:Ctrl |
-//         some t: Type |
-//             sensitive in t.labels and (some f: labeled_objects[CallArgument, stores] | flows_to[Ctrl, t, f])
-//     } for Flows is sat
-// }
-
-run {} for Flows
+test expect {
+    vacuity_one_deleter_premise: {
+        some c:Ctrl |
+        some t: Type |
+            sensitive in t.labels and (some f: labeled_objects[CallArgument, stores] | flows_to[Ctrl, t, f])
+    } for Flows is sat
+}
 
 test expect {
     data_is_deleted: {
