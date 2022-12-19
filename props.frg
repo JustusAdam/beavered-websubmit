@@ -91,19 +91,22 @@ pred authorized_all[principal: Src, c: Ctrl] {
     principal in c.types.(labeled_objects[Type, auth_witness + safe_source + presenter])
 }
 
-fun bad_flows[target: CallArgument, c: Ctrl] : set Src->CallArgument {
-    let transitive_flow = ^(c.flow + arg_call_site) |
-    let good_types = labeled_objects[Type, auth_witness + safe_source + presenter] |
-    let good_values = c.types.good_types |
-    let sensitive_values = c.types.(labeled_objects[Type, sensitive]) |
-    let terminal_values = (Src & transitive_flow.CallArgument) - transitive_flow[Src] |
-    let all_bad_terminal_source_values = terminal_values - good_values - sensitive_values |
-    let trans_flow_without_good_values = transitive_flow - (good_values->CallArgument) |
-    trans_flow_without_good_values & all_bad_terminal_source_values->target
+fun c_values[c: Ctrl, labels: set Label] : set Object {
+    c.types.(labeled_objects[Type, labels]) + labeled_objects[c.flow.CallArgument, labels]
 }
 
-pred authorized_paths[target: CallArgument, c: Ctrl] {
+fun bad_flows[target: CallArgument, c: Ctrl] : set Src->CallArgument {
+    let transitive_flow = ^(c.flow + arg_call_site) |
+    let good_values = c_values[c, auth_witness + safe_source + presenter] |
+    let sensitive_values = c_values[c, sensitive] |
+    let terminal_values = (Src & transitive_flow.CallArgument) - transitive_flow[Src] |
+    let all_bad_terminal_source_values = terminal_values - good_values - sensitive_values |
+    let trans_flow_without_good_values = ^(c.flow - (good_values->CallArgument) + arg_call_site) |
+    trans_flow_without_good_values & all_bad_terminal_source_values->target             
+}
 
+pred authorized_paths[target: set CallArgument, c: Ctrl] {
+    no bad_flows[labeled_objects[target, scopes], c]
 }
 
 pred outputs_to_authorized_all {
@@ -128,42 +131,17 @@ test expect {
     } for Flows is sat
 }
 
-// Somehow this vacuity test passes, but the test for a failing property does
-// not. Curiously also when I drop the premise into the evaluator it comes up
-// empty.
-test expect {
-    vacuity_outputs_to_authorized_premise: {
-        some c: Ctrl, a : labeled_objects[InputArgument + Type, sensitive], f : CallSite | 
-            (some r : labeled_objects[arguments[f], sink] | flows_to[c, a, r]) 
-    } for Flows is sat
-    new_authorization_fails_without_safe_presenter_source: {
-        not outputs_to_authorized_all0
-    } for Flows is sat
-}
-expect {
-    new_authorization: {
-        outputs_to_authorized_all
-    } for Flows is theorem
-}
-
-run {} for Flows
-
-// This fails. Unsure why.
-test expect {
-    there_are_stores: {
-        some labeled_objects[CallArgument, sink]
-    } for Flows is sat
-    vacuity_one_deleter_premise: {
-        some c:Ctrl |
-        some t: Type |
-            sensitive in t.labels and (some f: labeled_objects[CallArgument, sink] | flows_to[Ctrl, t, f])
-    } for Flows is sat
-}
 
 test expect {
+    oxymoron_check_data_is_deleted: {
+        not one_deleter
+    } is sat
     data_is_deleted: {
         one_deleter
     } for Flows is theorem
+    oxymoron_check_stores_are_safe: {
+        not stores_to_authorized
+    } is sat
     stores_are_safe: {
         stores_to_authorized
     } for Flows is theorem
@@ -173,9 +151,15 @@ test expect {
     outputs_without_presenters_are_unsafe: {
         not outputs_to_authorized_all0
     } for Flows is sat
+    oxymoron_check_outputs_with_presenters_are_safe: {
+        not outputs_to_authorized_all
+    } is sat
     outputs_with_presenters_are_safe: {
         outputs_to_authorized_all
     } for Flows is theorem
+    oxymoron_check_only_send_to_allowed: {
+        not only_send_to_allowed_sources
+    } is sat
     only_send_to_allowed: {
         only_send_to_allowed_sources
     } for Flows is theorem
