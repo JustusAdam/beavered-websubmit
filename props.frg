@@ -75,6 +75,7 @@ pred outputs_to_authorized {
         implies authorized[recipients[f, c], c]
 }
 
+// currently unused
 pred outputs_to_authorized_with_exception {
     all c: Ctrl, a : labeled_objects[InputArgument + Type, sensitive], f : CallSite | 
         (some r : labeled_objects[arguments[f], sink] | flows_to[c, a, r]) 
@@ -109,12 +110,13 @@ fun bad_flows[c: Ctrl, target: set CallArgument, authorized_labels: set Label] :
     trans_flow_without_good_values & all_bad_terminal_source_values->target             
 }
 
+// Just a debugging utility. Projects the `flow` relation for `c` 
+// to everything reachable from `start`
 fun flow_from[c: Ctrl, start: Object] : set Object -> Object {
     let t = ^(c.flow + arg_call_site) |
     let reach = t[start] |
     c.flow & reach->reach
 }
-// ((arg_1 arg2_send_b63_i1))
 
 inst BadFlows {
     Ctrl = `ctrl
@@ -143,6 +145,7 @@ test expect {
     } is sat
 }
 
+// Instance for an oxymoron check
 inst NotOutputsToAuthorizedAll {
     sensitive = `sensitive
     sink = `sink
