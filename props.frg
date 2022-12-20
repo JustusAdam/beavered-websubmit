@@ -101,7 +101,7 @@ fun c_values[c: Ctrl, labels: set Label] : set Object {
 
 // Calculate any flows in `c` that reach `target` but do not pass through 
 // or originate from a source that is labeled with one of `authorized_labels`
-fun bad_flows[c: Ctrl, target: set CallArgument, authorized_labels: set Label] : set Src->CallArgument {
+fun unauthorized_paths[c: Ctrl, target: set CallArgument, authorized_labels: set Label] : set Src->CallArgument {
     let transitive_flow = ^(c.flow + arg_call_site) |
     let good_values = c_values[c, authorized_labels] |
     let terminal_values = (Src & transitive_flow.CallArgument) - transitive_flow[Src] |
@@ -118,7 +118,8 @@ fun flow_from[c: Ctrl, start: Object] : set Object -> Object {
     c.flow & reach->reach
 }
 
-inst BadFlows {
+// Test instances for the unauthorized_paths function
+inst UnauthorizedPathsTestInst {
     Ctrl = `ctrl
     CallArgument = `ca_1
     Type = none
@@ -135,17 +136,17 @@ inst BadFlows {
 }
 
 test expect {
-    vacuityBadFlowsInst: {} for BadFlows is sat
-    bad_flows_inBadFlows: {
-        some bad_flows[`ctrl, `ca_1, none]
-    } for BadFlows is sat 
-    oxymoron_check_bad_flows: {
+    vacuityUnauthorizedPathsTestInstInst: {} for UnauthorizedPathsTestInst is sat
+    unauthorized_paths_inUnauthorizedPathsTestInst: {
+        some unauthorized_paths[`ctrl, `ca_1, none]
+    } for UnauthorizedPathsTestInst is sat 
+    oxymoron_check_unauthorized_paths: {
         some c: Ctrl, labels: set Label, target: set CallArgument |
-        some bad_flows[c, target, labels]
+        some unauthorized_paths[c, target, labels]
     } is sat
 }
 
-// Instance for an oxymoron check
+// Instance for an oxymoron check for outputs_with_presenters_are_safe
 inst NotOutputsToAuthorizedAll {
     sensitive = `sensitive
     sink = `sink
@@ -186,7 +187,7 @@ test expect {
 // Assert that all paths reach `target` in `c` are authorzed with one of 
 // the supplied labels
 pred authorized_paths[c: Ctrl, target: set CallArgument, authorized_labels: set Label] {
-    no bad_flows[c, target, authorized_labels]
+    no unauthorized_paths[c, target, authorized_labels]
 }
 
 // A version of `outputs_to_authorized` that reasons about all reaching 
