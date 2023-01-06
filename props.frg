@@ -173,10 +173,12 @@ inst NotOutputsToAuthorizedAll {
     deletes = `deletes
     auth_witness = `auth_witness
     safe_source = `safe_source
+	safe_source_with_bless = `safe_source_with_bless
+	bless_safe_source = `bless_safe_source
     scopes = `scopes
     presenter = `presenter
     cfg_source = `cfg_source
-    Label = sensitive+sink+scopes+exception+source+deletes+auth_witness+safe_source+presenter+stores+`cfg_source
+    Label = sensitive+sink+scopes+exception+source+deletes+auth_witness+safe_source+presenter+stores+`cfg_source+safe_source_with_bless+bless_safe_source
 
     Ctrl = `ctrl
     CallArgument = `ca_1+`ca_2
