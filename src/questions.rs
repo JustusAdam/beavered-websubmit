@@ -241,14 +241,19 @@ fn get_presenters(bg: &mut MySqlBackend, num: u8) -> Vec<String> {
     presenter_emails
 }
 
+#[dfpp::label(bless_safe_source, return)]
+fn get_num(num: u8) -> u8 {
+	num
+}
+
+#[dfpp::label(safe_source_with_bless, return)]
+fn get_staff(config: &State<Config>) -> Vec<String> {
+	config.staff.clone()
+}
+
 #[dfpp::label(safe_source, return)]
-fn get_staff(config: &State<Config>, num: u8) -> Vec<String> {
-    let recipients = if num < 90 {
-        config.staff.clone()
-    } else {
-        config.admins.clone()
-    };
-    recipients
+fn get_admins(config: &State<Config>) -> Vec<String> {
+	config.admins.clone()
 }
 
 #[dfpp::label(scopes, return)]
@@ -283,7 +288,7 @@ pub(crate) fn questions_submit_internal(
     for (id, answer) in &data.answers {
         let rec: Vec<Value> = vec![ 
             scopes_argument(&apikey.user).into(),
-            scopes_argument(&vnum.clone()), // THIS SHOULD RESULT IN FAILING only_send_to_allowed PROPERTY!
+            vnum.clone(),
             (*id).into(),
             answer.clone().into(),
             ts.clone(),
@@ -300,7 +305,11 @@ pub(crate) fn questions_submit_internal(
             .join("\n-----\n")
     );
     if config.send_emails {
-        let mut recipients = get_staff(config, num);
+        let mut recipients = if get_num(num) < 90 {
+			get_staff(config)
+		} else {
+			get_admins(config)
+		};
 
         recipients.append(&mut presenter_emails);
 
