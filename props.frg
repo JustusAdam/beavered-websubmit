@@ -44,11 +44,13 @@ fun arguments[f : CallSite] : set CallArgument {
 
 fun safe_sources[cs: Ctrl] : set Object {
 	labeled_objects_with_types[cs, Object, safe_source] // Either directly labeled with safe_source 
-	+ (
+	+ {
 		// Or it is safe_source_with_bless and has been flowed to by bless_safe_source
-		labeled_objects_with_types[cs, Object, bless_safe_source].^(cs.flow + cs.ctrl_flow + arg_call_site)
-		& labeled_objects_with_types[cs, Object, safe_source_with_bless]
-	)
+		elem : labeled_objects_with_types[cs, Object, safe_source_with_bless] | 
+		{
+			flows_to_ctrl[cs, labeled_objects_with_types[cs, Object, bless_safe_source], elem]
+		}
+	}
 }
 
 // verifies that for an type o, it flows into first before flowing into next
