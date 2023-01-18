@@ -1,6 +1,6 @@
 #lang forge
 
-open "framework_helpers.frg
+open "framework_helpers.frg"
 
 // Calls to store a value also are influenced by the authenticated user 
 // and thus likely make it possible to associate the stored value with 
@@ -10,8 +10,6 @@ pred stores_to_authorized {
         (some r : labeled_objects[arguments[f], stores] | flows_to[c, a, r]) 
         implies authorized[recipients[f, c], c]
 }
-
-"
 
 pred only_send_to_allowed_sources {
     all c: Ctrl, o : Object | 
