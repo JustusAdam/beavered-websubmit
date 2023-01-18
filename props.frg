@@ -1,5 +1,7 @@
 #lang forge
 
+open "analysis_result.frg"
+open "basic_helpers.frg"
 open "framework_helpers.frg"
 
 // Calls to store a value also are influenced by the authenticated user 
@@ -45,10 +47,6 @@ test expect {
         stores_to_authorized
     } for Flows is theorem
 
-    // Output properties
-    outputs_with_presenters_are_safe: {
-        outputs_to_authorized_all
-    } for Flows is theorem
 
     // Happens-before properties
     only_send_to_allowed: {

@@ -1,5 +1,6 @@
 #lang forge
 
+open "analysis_result.frg"
 open "basic_helpers.frg"
 
 // This file defines helper functions that 

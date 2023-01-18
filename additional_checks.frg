@@ -139,4 +139,9 @@ test expect {
     NotOutputsToAuthorizedAll_violates_property: {
         not outputs_to_authorized_all
     } for NotOutputsToAuthorizedAll is sat
+
+    // Output properties
+    outputs_with_presenters_are_safe: {
+        outputs_to_authorized_all
+    } for Flows is theorem
 }
