@@ -26,12 +26,13 @@ struct Args {
     verbose: bool,
 
     /// Version of the properties to run
-    prop: String,
+    prop: Vec<String>,
 
     #[clap(long, default_value = "..")]
     directory: std::path::PathBuf,
 }
 
+#[derive(Clone)]
 enum RunResult {
     Success,
     CompilationError,
@@ -40,18 +41,40 @@ enum RunResult {
 
 impl std::fmt::Display for RunResult {
     fn fmt(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        use std::fmt::{Alignment, Write};
+        let width = formatter.width().unwrap_or(2);
+        let (before, after) =
+            match formatter.align() {
+                None => (0,width - 2),
+                _ if width < 2 => (0,0),
+                Some(Alignment::Left) => (0, width - 2),
+                Some(Alignment::Right) => (width - 2, 0),
+                Some(Alignment::Center) => {
+                    let left = (width - 2) / 2;
+                    (left, width - 2 - left)
+                }
+
+            };
+        let fill_chr = formatter.fill();
+        for _ in 0..before {
+            formatter.write_char(fill_chr)?;
+        }
         match self {
             RunResult::Success => 
-                formatter.pad("✅"),
+                formatter.write_str("✅"),
             RunResult::CompilationError => 
-                formatter.pad("️🚧"),
+                formatter.write_str("️🚧"),
             RunResult::CheckError => 
-                formatter.pad("❌")
+                formatter.write_str("❌")
+        }?;
+        for _ in 0..after {
+            formatter.write_char(fill_chr)?;
         }
+        Ok(())
     }
 }
 
-fn run_edit(typ: &str, version: &str, edit: Option<&str>, cd: &std::path::Path, verbose: bool) -> RunResult {
+fn run_edit(typ: &str, versions: &[String], edit: Option<&str>, cd: &std::path::Path, verbose: bool) -> Vec<RunResult> {
     use std::process::*;
     let mut dfpp_cmd = Command::new("cargo");
     dfpp_cmd
@@ -67,31 +90,34 @@ fn run_edit(typ: &str, version: &str, edit: Option<&str>, cd: &std::path::Path, 
             .stdout(Stdio::null());
     }
     if !dfpp_cmd.status().unwrap().success() {
-        return RunResult::CompilationError;
-    }
+        return std::iter::repeat(RunResult::CompilationError).take(versions.len()).collect();
+    }   
 
-    let propfile = format!("{version}-{typ}-props.frg");
-    let mut racket_cmd = Command::new("racket");
-    racket_cmd
-        .current_dir(cd)
-        .arg(propfile)
-        .stdin(Stdio::null());
-    if !verbose {
+    versions.iter().map(|version| {
+        let propfile = format!("{version}-{typ}-props.frg");
+        let mut racket_cmd = Command::new("racket");
         racket_cmd
-            .stderr(Stdio::null())
-            .stdout(Stdio::null());
-    }
-    if racket_cmd.status().unwrap().success() {
-        RunResult::Success
-    } else {
-        RunResult::CheckError
-    }
+            .current_dir(cd)
+            .arg(propfile)
+            .stdin(Stdio::null());
+        if !verbose {
+            racket_cmd
+                .stderr(Stdio::null())
+                .stdout(Stdio::null());
+        }
+        if racket_cmd.status().unwrap().success() {
+            RunResult::Success
+        } else {
+            RunResult::CheckError
+        }
+    }).collect()
 }
 
 fn main() {
+    use std::io::Write;
     let args = Args::parse();
     let head_cell_width = 12;
-    let body_cell_width = 10;
+    let body_cell_width = args.prop.iter().map(|e| e.len()).max().unwrap_or(2);
 
     let results = CONFIGURATIONS.iter().map(|(typ, edits)| {
         (typ, edits
@@ -99,14 +125,31 @@ fn main() {
                 .cloned()
                 .map(Some)
                 .chain([None])
-                .map(|e| (e, run_edit(typ, &args.prop, e, &args.directory, args.verbose))).collect::<Vec<_>>())
+                .map(|e| 
+                    (e, run_edit(typ, &args.prop, e, &args.directory, args.verbose))).collect::<Vec<_>>())
     });
 
-    for (typ, results) in results {
-        println!(" {:head_cell_width$} | {:body_cell_width$}", typ, args.prop);
-        println!("-{:-<head_cell_width$}-+-{:-<body_cell_width$}", "", "");
-        for (edit, result) in results {
-            println!("{:head_cell_width$}|{:body_cell_width$}", edit.unwrap_or(&"none"), result);
+    let ref mut w = std::io::stdout();
+    (|| -> std::io::Result<()> {
+        for (typ, results) in results {
+            write!(w, " {:head_cell_width$} ", typ,)?;
+            for version in args.prop.iter() {
+                write!(w, "| {:body_cell_width$} ", version)?
+            }
+            writeln!(w, "")?;
+            write!(w, "-{:-<head_cell_width$}-", "")?;
+            for _ in args.prop.iter() {
+                write!(w, "+-{:-<body_cell_width$}-", "")?
+            }
+            writeln!(w, "")?;
+            for (edit, versions) in results {
+                write!(w, " {:head_cell_width$} ", edit.unwrap_or(&"none"))?;
+                for result in versions {
+                    write!(w, "| {:^body_cell_width$} ", result)?;
+                }
+                writeln!(w, "")?;
+            }
         }
-    }
+        Ok(())
+    })().unwrap()
 }
