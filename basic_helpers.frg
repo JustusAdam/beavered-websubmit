@@ -12,6 +12,14 @@ pred flows_to[cs: Ctrl, o: Object, f : (CallArgument + CallSite)] {
     }
 }
 
+pred flows_to_ctrl[cs: Ctrl, o: Object, f : CallArgument] {
+    some c: cs |
+    some a : Src | {
+        o = a or o in Type and a->o in c.types
+        a -> f in ^(c.flow + c.ctrl_flow + arg_call_site)
+    }
+}
+
 fun labeled_objects[obs: Object, ls: Label] : set Object {
     labels.ls & obs
 }

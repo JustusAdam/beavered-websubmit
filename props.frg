@@ -16,12 +16,12 @@ pred stores_to_authorized {
 pred only_send_to_allowed_sources {
     all c: Ctrl, o : Object | 
         all scope : labeled_objects_with_types[c, Object, scopes] |
-            flows_to[c, o, scope]
+            flows_to_ctrl[c, o, scope]
             implies {
-                (some o & labeled_objects_with_types[c, Object, safe_source]) // either it is safe itself
-                or always_happens_before[c, o, labeled_objects_with_types[c, Object, safe_source], scope] // obj must go through something in safe before scope
-                or (some safe : labeled_objects_with_types[c, Object, safe_source] |
-                    flows_to[c, safe, o]) // safe must have flowed to obj at some point
+                (some o & safe_sources[c]) // either it is safe itself
+                or always_happens_before[c, o, safe_sources[c], scope] // obj must go through something in safe before scope
+                or (some safe : safe_sources[c] |
+                    flows_to_ctrl[c, safe, o]) // safe must have flowed to obj at some point
             }
 }
 
