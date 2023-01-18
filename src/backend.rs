@@ -104,6 +104,7 @@ impl MySqlBackend {
         self.do_insert(table, vals, true);
     }
 
+    #[cfg_attr(any(feature = "edit-1-4-a", feature = "edit-1-4-b"), dfpp::label(deletes, arguments = [2]))]
     pub fn delete(&mut self, table: &str, criteria: &[(&str, Value)]) {
         let (where_parts, vals): (Vec<_>, Vec<_>) = criteria.iter().map(|(id, v)| (format!("{id} = ?"), v)).unzip();
         let where_ = where_parts.join(" AND ");

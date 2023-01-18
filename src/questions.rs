@@ -13,6 +13,7 @@ use rocket_dyn_templates::Template;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
+
 #[dfpp::label(sensitive)]
 #[dfpp::output_types(LectureAnswer)]
 #[derive(Debug, FromForm)]
@@ -116,6 +117,26 @@ pub enum Either<A,B> {
 }
 
 #[dfpp::label(source)]
+fn get_one_answer(bg: &mut MySqlBackend, user: &str, key: u64) -> LectureAnswer {
+    let res = bg.prep_exec("SELECT * FROM answers WHERE email = ? AND num = ?", vec![user, key]);
+    res
+        .into_iter()
+        .map(|r| LectureAnswer {
+            id: from_value(r[2].clone()),
+            lec: from_value(r[1].clone()),
+            user: from_value(r[0].clone()),
+            answer: from_value(r[3].clone()),
+            time: if let Value::Time(..) = r[4] {
+                Some(from_value::<NaiveDateTime>(r[4].clone()))
+            } else {
+                None
+            },
+        })
+        .next()
+        .unwrap()
+}
+
+#[dfpp::label(source)]
 fn get_answers(bg: &mut MySqlBackend, key: Either<u64, &str>) -> Vec<LectureAnswer> {
     let (where_, key) = match key {
         Either::Left(lec) => ("lec", lec.into()),
@@ -204,7 +225,8 @@ pub(crate) fn questions(
 }
 
 impl LectureAnswer {
-    #[dfpp::label(deletes, arguments = [0])]
+    #[cfg_attr(not(feature = "edit-1-3"), dfpp::label(deletes, arguments = [0]))]
+    #[cfg_attr(feature = "edit-1-3", dfpp::label(deletes, arguments = [0]))]
     fn delete_answer(self, bg: &mut MySqlBackend) {
         bg.delete("answers", &[("lec", self.lec.into()), ("q", self.id.into()), ("email", self.user.into())]);
     }
@@ -217,14 +239,81 @@ impl ApiKey {
     }
 }
 
+#[cfg(feature = "edit-1-7")]
+#[dfpp::analyze]
+#[post("/answer/delete/<num>")]
+pub(crate) fn delete_answer(apikey: ApiKey, num: u64, backend: &State<Arc<Mutex<MySqlBackend>>>) -> Redirect {
+    get_one_answer(&mut backend.lock().unwrap(), &apikey.user, num);
+    Redirect::to("/")
+}
+
+
 #[dfpp::analyze]
 #[post("/forget")]
 pub(crate) fn forget_user(apikey: ApiKey, backend: &State<Arc<Mutex<MySqlBackend>>>) -> Redirect {
     let mut bg = backend.lock().unwrap();
-    let answers = get_answers(&mut bg, Either::Right(&apikey.user));
-    for answer in answers {
-        answer.delete_answer(&mut bg);
+    cfg_if! {
+        if #[cfg(feature = "edit-1-8")] {
+            let key = "test@test.com";
+        } else {
+            let key = apikey.user.as_str();
+        }
     }
+    cfg_if! {
+        if #[cfg(feature = "edit-1-10")] {
+            let res = bg.prep_exec(&format!("SELECT * FROM answers WHERE email = ?"), vec![key]);
+            res
+                .into_iter()
+                .map(|r| LectureAnswer {
+                    id: from_value(r[2].clone()),
+                    lec: from_value(r[1].clone()),
+                    user: from_value(r[0].clone()),
+                    answer: from_value(r[3].clone()),
+                    time: if let Value::Time(..) = r[4] {
+                        Some(from_value::<NaiveDateTime>(r[4].clone()))
+                    } else {
+                        None
+                    },
+                })
+                .collect()
+        } else {
+            let answers = get_answers(&mut bg, Either::Right(key));
+        }
+    }
+
+    #[cfg(feature = "edit-1-11")]
+    apikey.delete_apikey(&mut bg);
+
+    cfg_if! {
+        if #[cfg(feature = "edit-1-5")] {
+            answers[0].delete_answer(&mut bg);
+        } else if #[cfg(feature = "edit-1-9")] {
+            LectureAnswer {
+                id: 0,
+                lec: 0,
+                user: "test@test.com".to_string(),
+                answer: "dummy".to_string(),
+                time: None,
+            }.delete_answer(&mut bg);
+        } else {
+            for answer in answers {
+                cfg_if! {
+                    if #[cfg(any(feature = "edit-1-1", feature = "edit-1-7"))] {
+                    } else if #[cfg(any(feature = "edit-1-2", feature = "edit-1-4-a"))] {
+                        backend.delete("answers", &[("lec", self.lec.into()), ("q", self.id.into()), ("email", self.user.into())]);
+                    } else if #[cfg(feature = "edit-1-4-b")] {
+                        backend.delete("answers", &[("lec", self.lec.into()), ("q", self.id.into())]);
+                    } else if #[cfg(feature = "edit-1-4-c")] {
+                        backend.delete("answers", &[("lec", self.lec.into()), ("email", self.user.into())]);
+                    } else {
+                        answer.delete_answer(&mut bg);
+                    }
+                }
+            }
+        }
+    }
+
+    #[cfg(not(feature = "edit-1-11"))]
     apikey.delete_apikey(&mut bg);
     Redirect::to("/")
 }

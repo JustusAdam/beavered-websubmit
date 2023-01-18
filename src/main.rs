@@ -14,6 +14,10 @@ extern crate slog_term;
 #[macro_use]
 extern crate serde_derive;
 
+
+#[macro_use]
+extern crate cfg_if;
+
 mod admin;
 mod apikey;
 mod args;
