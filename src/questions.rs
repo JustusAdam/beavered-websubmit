@@ -13,6 +13,8 @@ use rocket_dyn_templates::Template;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
+#[cfg(feature = "edit-1-6")]
+compile_error!("Edit 1-6 is not implemented");
 
 #[dfpp::label(sensitive)]
 #[dfpp::output_types(LectureAnswer)]
