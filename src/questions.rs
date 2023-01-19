@@ -244,7 +244,7 @@ impl ApiKey {
 #[cfg(feature = "edit-1-7")]
 #[dfpp::analyze]
 #[post("/answer/delete/<num>")]
-pub(crate) fn delete_answer(apikey: ApiKey, num: u64, backend: &State<Arc<Mutex<MySqlBackend>>>) -> Redirect {
+pub(crate) fn delete_answer_handler(apikey: ApiKey, num: u64, backend: &State<Arc<Mutex<MySqlBackend>>>) -> Redirect {
     get_one_answer(&mut backend.lock().unwrap(), &apikey.user, num);
     Redirect::to("/")
 }
@@ -263,8 +263,8 @@ pub(crate) fn forget_user(apikey: ApiKey, backend: &State<Arc<Mutex<MySqlBackend
     }
     cfg_if! {
         if #[cfg(feature = "edit-1-10")] {
-            let res = bg.prep_exec(&format!("SELECT * FROM answers WHERE email = ?"), vec![key]);
-            res
+            let res = bg.prep_exec(&format!("SELECT * FROM answers WHERE email = ?"), vec![key.into()]);
+            let mut answers = res
                 .into_iter()
                 .map(|r| LectureAnswer {
                     id: from_value(r[2].clone()),
@@ -276,10 +276,9 @@ pub(crate) fn forget_user(apikey: ApiKey, backend: &State<Arc<Mutex<MySqlBackend
                     } else {
                         None
                     },
-                })
-                .collect()
+                });
         } else {
-            let answers = get_answers(&mut bg, Either::Right(key));
+            let mut answers = get_answers(&mut bg, Either::Right(key));
         }
     }
 
@@ -288,7 +287,7 @@ pub(crate) fn forget_user(apikey: ApiKey, backend: &State<Arc<Mutex<MySqlBackend
 
     cfg_if! {
         if #[cfg(feature = "edit-1-5")] {
-            answers[0].delete_answer(&mut bg);
+            answers.pop().unwrap().delete_answer(&mut bg);
         } else if #[cfg(feature = "edit-1-9")] {
             LectureAnswer {
                 id: 0,
@@ -302,11 +301,11 @@ pub(crate) fn forget_user(apikey: ApiKey, backend: &State<Arc<Mutex<MySqlBackend
                 cfg_if! {
                     if #[cfg(any(feature = "edit-1-1", feature = "edit-1-7"))] {
                     } else if #[cfg(any(feature = "edit-1-2", feature = "edit-1-4-a"))] {
-                        backend.delete("answers", &[("lec", self.lec.into()), ("q", self.id.into()), ("email", self.user.into())]);
+                        bg.delete("answers", &[("lec", answer.lec.into()), ("q", answer.id.into()), ("email", answer.user.into())]);
                     } else if #[cfg(feature = "edit-1-4-b")] {
-                        backend.delete("answers", &[("lec", self.lec.into()), ("q", self.id.into())]);
+                        bg.delete("answers", &[("lec", answer.lec.into()), ("q", answer.id.into())]);
                     } else if #[cfg(feature = "edit-1-4-c")] {
-                        backend.delete("answers", &[("lec", self.lec.into()), ("email", self.user.into())]);
+                        bg.delete("answers", &[("lec", answer.lec.into()), ("email", answer.user.into())]);
                     } else {
                         answer.delete_answer(&mut bg);
                     }
