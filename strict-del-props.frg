@@ -3,20 +3,20 @@
 open "analysis_result.frg"
 open "basic_helpers.frg"
 open "framework_helpers.frg"
+
+
 // Asserts that there exists one controller which calls a deletion
 // function on every value (or an equivalent type) that is ever stored.
 pred one_deleter {
-    some c:Ctrl |
-    some s: labeled_objects[Src, auth_whitness] |
+    some cleanup : Ctrl |
+    some auth: labeled_objects[cleanup.types[Src], auth_witness] |
     all t: labeled_objects[Type, sensitive] |
-        (some f: labeled_objects[CallArgument, sink] | flows_to[Ctrl, t, f])
-        implies (some f: labeled_objects[CallArgument, deletes], ot: t.otype + t | 
-            flows_to[c, s, to_source[ot]] and
-            flows_to[c, ot, f] )
+        (some ctrl: Ctrl, store: labeled_objects[CallArgument, stores] | flows_to[ctrl, t, store]) 
+        implies
+        (some f: labeled_objects[CallArgument, deletes], ot : t + t.otype | 
+            flows_to[cleanup, auth, to_source[cleanup, ot]] and
+            flows_to[cleanup, ot, f])
 }
-
-
-
 
 test expect {
     // Deletion properties

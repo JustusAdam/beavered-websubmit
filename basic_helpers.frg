@@ -2,15 +2,15 @@
 
 open "analysis_result.frg"
 
-fun to_source[cs: Ctrl, o: Object] : Src {
+fun to_source[c: one Ctrl, o: one Type + Src] : Src {
     {a : Src |
         o = a or o in Type and a->o in c.types}
 }
 
-pred flows_to[cs: Ctrl, o: Object, f : (CallArgument + CallSite)] {
+pred flows_to[cs: Ctrl, o: one Type + Src, f : (CallArgument + CallSite)] {
     some c: cs |
-    let a : to_source[cs, o] | {
-        some (c.flow.a + a.(c.flow)) // a exists in cs
+    let a = to_source[c, o] | {
+        some c.flow[a] // a exists in cs
         and (a -> f in ^(c.flow + arg_call_site))
     }
 }

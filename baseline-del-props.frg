@@ -6,10 +6,12 @@ open "framework_helpers.frg"
 // Asserts that there exists one controller which calls a deletion
 // function on every value (or an equivalent type) that is ever stored.
 pred one_deleter {
-    some c:Ctrl |
-    all t: Type |
-        sensitive in t.labels and (some f: labeled_objects[CallArgument, sink] | flows_to[Ctrl, t, f])
-        implies (some f: labeled_objects[CallArgument, deletes], ot: t.otype + t | flows_to[c, ot, f] )
+    some cleanup : Ctrl |
+    all t: labeled_objects[Type, sensitive] |
+        (some ctrl: Ctrl, store: labeled_objects[CallArgument, stores] | flows_to[ctrl, t, store]) 
+        implies
+        (some f: labeled_objects[CallArgument, deletes], ot : t + t.otype | 
+            flows_to[cleanup, ot, f])
 }
 
 
