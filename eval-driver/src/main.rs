@@ -10,7 +10,7 @@ const CONFIGURATIONS : &'static [(&'static str, &'static[&'static str])] = &[
         "edit-1-4-a",
         "edit-1-4-b",
         "edit-1-5",
-        "edit-1-6",
+        //"edit-1-6",
         "edit-1-7",
         "edit-1-8",
         "edit-1-9",
@@ -19,15 +19,20 @@ const CONFIGURATIONS : &'static [(&'static str, &'static[&'static str])] = &[
     ])
 ];
 
+/// Batch executor for the evaluation of our 2023 HotOS paper.
+/// 
+/// Be aware that this tool does not install dfpp itself but assumes the latest
+/// version is already present and in the $PATH.
 #[derive(Parser)]
 struct Args {
-    /// Print complete error messages
+    /// Print complete error messages for called programs on failure
     #[clap(long)]
     verbose: bool,
 
     /// Version of the properties to run
     prop: Vec<String>,
 
+    /// Location of the WebSubmit repo
     #[clap(long, default_value = "..")]
     directory: std::path::PathBuf,
 }
