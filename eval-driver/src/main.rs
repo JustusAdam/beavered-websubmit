@@ -4,6 +4,8 @@ use clap::Parser;
 
 use indicatif::ProgressBar;
 
+use std::collections::HashSet;
+
 const CONFIGURATIONS: &'static [(&'static str, &'static [(&'static str, bool)])] = &[(
     "del",
     &[
@@ -12,6 +14,7 @@ const CONFIGURATIONS: &'static [(&'static str, &'static [(&'static str, bool)])]
         ("edit-1-3", true),
         ("edit-1-4-a", true),
         ("edit-1-4-b", true),
+        ("edit-1-4-c", true),
         ("edit-1-5", false),
         //"edit-1-6",
         ("edit-1-7", false),
@@ -38,6 +41,9 @@ struct Args {
     /// Location of the WebSubmit repo
     #[clap(long, default_value = "..")]
     directory: std::path::PathBuf,
+
+    #[clap(long)]
+    only: Option<Vec<String>>,
 }
 
 #[derive(Clone)]
@@ -143,10 +149,28 @@ fn main() {
     let args = Args::parse();
     let head_cell_width = 12;
     let body_cell_width = args.prop.iter().map(|e| e.len()).max().unwrap_or(2);
+    let ref is_selected = {
+        let as_ref_v = args
+            .only
+            .as_ref()
+            .map(|v| v.iter().map(String::as_str).collect::<HashSet<&str>>());
+        move |s| as_ref_v.as_ref().map_or(true, |v| v.contains(s))
+    };
 
     let num_versions = args.prop.len();
 
-    let configurations = CONFIGURATIONS
+    let configurations: Vec<(_, Vec<_>)> = CONFIGURATIONS
+        .iter()
+        .filter_map(|(t, edits)| {
+            let new_edits = edits
+                .iter()
+                .filter(|e| is_selected(e.0))
+                .collect::<Vec<_>>();
+            (!new_edits.is_empty()).then_some((t, new_edits))
+        })
+        .collect();
+
+    let num_configurations = configurations
         .iter()
         .map(
             |(_, inner)| inner.len() + 1, // default (no edits)
@@ -155,13 +179,13 @@ fn main() {
         * (1 // compile 
             + num_versions);
 
-    let progress = ProgressBar::new(configurations as u64).with_style(
+    let progress = ProgressBar::new(num_configurations as u64).with_style(
         indicatif::ProgressStyle::default_bar()
             .template("{msg:10} {bar:40} {pos:>3}/{len:3}")
             .unwrap(),
     );
 
-    let results = CONFIGURATIONS
+    let results = configurations
         .iter()
         .map(|(typ, edits)| {
             (
@@ -174,7 +198,14 @@ fn main() {
                     .map(|e| {
                         (
                             e,
-                            run_edit(typ, &args.prop, e.map(|e| e.0), &args.directory, args.verbose, &progress),
+                            run_edit(
+                                typ,
+                                &args.prop,
+                                e.map(|e| e.0),
+                                &args.directory,
+                                args.verbose,
+                                &progress,
+                            ),
                         )
                     })
                     .collect::<Vec<_>>(),
@@ -203,8 +234,8 @@ fn main() {
             }
             writeln!(w, "")?;
             for (edit, versions) in results {
-                let (edit, exp_bool) = edit.unwrap_or((&"none", true));
-                let expected : RunResult = exp_bool.into();
+                let (edit, exp_bool) = edit.cloned().unwrap_or((&"none", true));
+                let expected: RunResult = exp_bool.into();
                 write!(w, " {:head_cell_width$} ", edit)?;
                 write!(w, "| {:^body_cell_width$} ", expected)?;
                 for (i, result) in versions.into_iter().enumerate() {
