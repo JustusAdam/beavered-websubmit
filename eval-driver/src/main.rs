@@ -25,6 +25,11 @@ const CONFIGURATIONS: &'static [(&'static str, &'static [(&'static str, bool)])]
     ],
 )];
 
+const ALL_KNOWN_VARIANTS: &'static [&'static str] = &[
+    "baseline",
+    "strict"
+];
+
 /// Batch executor for the evaluation of our 2023 HotOS paper.
 ///
 /// Be aware that this tool does not install dfpp itself but assumes the latest
@@ -146,7 +151,15 @@ fn run_edit(
 
 fn main() {
     use std::io::Write;
-    let args = Args::parse();
+    let args = {
+        let mut args = Args::parse();
+        if args.prop.is_empty() {
+            println!("INFO: No specification variants to run given, running all known ones");
+            args.prop = ALL_KNOWN_VARIANTS.iter().cloned().map(str::to_string).collect();
+        }
+        args
+    };
+
     let head_cell_width = 12;
     let body_cell_width = args.prop.iter().map(|e| e.len()).max().unwrap_or(0).max(8);
     let ref is_selected = {
