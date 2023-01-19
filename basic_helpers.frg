@@ -2,11 +2,14 @@
 
 open "analysis_result.frg"
 
+fun to_source[cs: Ctrl, o: Object] : Src {
+    {a : Src |
+        o = a or o in Type and a->o in c.types}
+}
 
 pred flows_to[cs: Ctrl, o: Object, f : (CallArgument + CallSite)] {
     some c: cs |
-    some a : Object | {
-        o = a or o in Type and a->o in c.types
+    let a : to_source[cs, o] | {
         some (c.flow.a + a.(c.flow)) // a exists in cs
         and (a -> f in ^(c.flow + arg_call_site))
     }

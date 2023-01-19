@@ -148,7 +148,7 @@ fn main() {
     use std::io::Write;
     let args = Args::parse();
     let head_cell_width = 12;
-    let body_cell_width = args.prop.iter().map(|e| e.len()).max().unwrap_or(2);
+    let body_cell_width = args.prop.iter().map(|e| e.len()).max().unwrap_or(0).max(8);
     let ref is_selected = {
         let as_ref_v = args
             .only
