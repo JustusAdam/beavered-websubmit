@@ -8,3 +8,4 @@ authors = ["Justus Adam"]
 
 [dependencies]
 clap = { version = "3", features = ["derive"] }
+indicatif = "0.17.3"
