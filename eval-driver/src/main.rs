@@ -230,10 +230,10 @@ fn main() {
     let ref mut w = std::io::stdout();
     (|| -> std::io::Result<()> {
         for (typ, results) in results {
-            let mut false_positives = Vec::with_capacity(num_versions);
-            false_positives.resize(num_versions, 0);
             let mut false_negatives = Vec::with_capacity(num_versions);
             false_negatives.resize(num_versions, 0);
+            let mut false_positives = Vec::with_capacity(num_versions);
+            false_positives.resize(num_versions, 0);
 
             write!(w, " {:head_cell_width$} ", typ,)?;
             let exp = "expected".to_string();
@@ -253,8 +253,8 @@ fn main() {
                 write!(w, "| {:^body_cell_width$} ", expected)?;
                 for (i, result) in versions.into_iter().enumerate() {
                     match (&expected, &result) {
-                        (RunResult::Success, RunResult::CheckError) => false_negatives[i] += 1,
-                        (RunResult::CheckError, RunResult::Success) => false_positives[i] += 1,
+                        (RunResult::Success, RunResult::CheckError) => false_positives[i] += 1,
+                        (RunResult::CheckError, RunResult::Success) => false_negatives[i] += 1,
                         _ => (),
                     };
                     write!(w, "| {:^body_cell_width$} ", result)?;
@@ -267,15 +267,15 @@ fn main() {
             }
             writeln!(w, "")?;
 
-            write!(w, " {:head_cell_width$} ", "false pos")?;
-            write!(w, "| {:^body_cell_width$} ", "-")?;
-            for p in false_positives {
-                write!(w, "| {:^body_cell_width$} ", p)?;
-            }
-            writeln!(w, "")?;
             write!(w, " {:head_cell_width$} ", "false neg")?;
             write!(w, "| {:^body_cell_width$} ", "-")?;
             for p in false_negatives {
+                write!(w, "| {:^body_cell_width$} ", p)?;
+            }
+            writeln!(w, "")?;
+            write!(w, " {:head_cell_width$} ", "false pos")?;
+            write!(w, "| {:^body_cell_width$} ", "-")?;
+            for p in false_positives {
                 write!(w, "| {:^body_cell_width$} ", p)?;
             }
             writeln!(w, "")?;
