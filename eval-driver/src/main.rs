@@ -4,22 +4,21 @@ use clap::Parser;
 
 use indicatif::ProgressBar;
 
-const CONFIGURATIONS: &'static [(&'static str, &'static [&'static str])] = &[(
+const CONFIGURATIONS: &'static [(&'static str, &'static [(&'static str, bool)])] = &[(
     "del",
     &[
-        "edit-1-1",
-        "edit-1-2",
-        "edit-1-3",
-        "edit-1-4",
-        "edit-1-4-a",
-        "edit-1-4-b",
-        "edit-1-5",
+        ("edit-1-1", false),
+        ("edit-1-2", true),
+        ("edit-1-3", true),
+        ("edit-1-4-a", true),
+        ("edit-1-4-b", true),
+        ("edit-1-5", false),
         //"edit-1-6",
-        "edit-1-7",
-        "edit-1-8",
-        "edit-1-9",
-        "edit-1-10",
-        "edit-1-11",
+        ("edit-1-7", false),
+        ("edit-1-8", false),
+        ("edit-1-9", false),
+        ("edit-1-10", true),
+        ("edit-1-11", true),
     ],
 )];
 
@@ -46,6 +45,16 @@ enum RunResult {
     Success,
     CompilationError,
     CheckError,
+}
+
+impl From<bool> for RunResult {
+    fn from(b: bool) -> Self {
+        if b {
+            RunResult::Success
+        } else {
+            RunResult::CheckError
+        }
+    }
 }
 
 impl std::fmt::Display for RunResult {
@@ -135,6 +144,8 @@ fn main() {
     let head_cell_width = 12;
     let body_cell_width = args.prop.iter().map(|e| e.len()).max().unwrap_or(2);
 
+    let num_versions = args.prop.len();
+
     let configurations = CONFIGURATIONS
         .iter()
         .map(
@@ -142,11 +153,11 @@ fn main() {
         )
         .sum::<usize>()
         * (1 // compile 
-            + args.prop.len());
+            + num_versions);
 
     let progress = ProgressBar::new(configurations as u64).with_style(
         indicatif::ProgressStyle::default_bar()
-            .template("{msg:10} {bar} {pos:>3}/{len:3}")
+            .template("{msg:10} {bar:40} {pos:>3}/{len:3}")
             .unwrap(),
     );
 
@@ -163,36 +174,67 @@ fn main() {
                     .map(|e| {
                         (
                             e,
-                            run_edit(typ, &args.prop, e, &args.directory, args.verbose, &progress),
+                            run_edit(typ, &args.prop, e.map(|e| e.0), &args.directory, args.verbose, &progress),
                         )
                     })
                     .collect::<Vec<_>>(),
             )
         })
         .collect::<Vec<_>>();
-    println!("{}", progress.position());
     progress.finish_and_clear();
 
     let ref mut w = std::io::stdout();
     (|| -> std::io::Result<()> {
         for (typ, results) in results {
+            let mut false_positives = Vec::with_capacity(num_versions);
+            false_positives.resize(num_versions, 0);
+            let mut false_negatives = Vec::with_capacity(num_versions);
+            false_negatives.resize(num_versions, 0);
+
             write!(w, " {:head_cell_width$} ", typ,)?;
-            for version in args.prop.iter() {
+            let exp = "expected".to_string();
+            for version in [&exp].into_iter().chain(args.prop.iter()) {
                 write!(w, "| {:body_cell_width$} ", version)?
             }
             writeln!(w, "")?;
             write!(w, "-{:-<head_cell_width$}-", "")?;
-            for _ in args.prop.iter() {
+            for _ in 0..args.prop.len() + 1 {
                 write!(w, "+-{:-<body_cell_width$}-", "")?
             }
             writeln!(w, "")?;
             for (edit, versions) in results {
-                write!(w, " {:head_cell_width$} ", edit.unwrap_or(&"none"))?;
-                for result in versions {
+                let (edit, exp_bool) = edit.unwrap_or((&"none", true));
+                let expected : RunResult = exp_bool.into();
+                write!(w, " {:head_cell_width$} ", edit)?;
+                write!(w, "| {:^body_cell_width$} ", expected)?;
+                for (i, result) in versions.into_iter().enumerate() {
+                    match (&expected, &result) {
+                        (RunResult::Success, RunResult::CheckError) => false_negatives[i] += 1,
+                        (RunResult::CheckError, RunResult::Success) => false_positives[i] += 1,
+                        _ => (),
+                    };
                     write!(w, "| {:^body_cell_width$} ", result)?;
                 }
                 writeln!(w, "")?;
             }
+            write!(w, "-{:-<head_cell_width$}-", "")?;
+            for _ in 0..args.prop.len() + 1 {
+                write!(w, "+-{:-<body_cell_width$}-", "")?
+            }
+            writeln!(w, "")?;
+
+            write!(w, " {:head_cell_width$} ", "false pos")?;
+            write!(w, "| {:^body_cell_width$} ", "-")?;
+            for p in false_positives {
+                write!(w, "| {:^body_cell_width$} ", p)?;
+            }
+            writeln!(w, "")?;
+            write!(w, " {:head_cell_width$} ", "false neg")?;
+            write!(w, "| {:^body_cell_width$} ", "-")?;
+            for p in false_negatives {
+                write!(w, "| {:^body_cell_width$} ", p)?;
+            }
+            writeln!(w, "")?;
         }
         Ok(())
     })()
