@@ -224,6 +224,8 @@ pub(crate) fn questions(
 }
 
 impl LectureAnswer {
+
+    #[dfpp::label(deletes, arguments = [0])]
     fn delete_answer(self, bg: &mut MySqlBackend) {
         bg.delete("answers", &[("lec", self.lec.into()), ("q", self.id.into()), ("email", self.user.into())]);
     }

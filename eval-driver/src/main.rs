@@ -5,7 +5,7 @@ use clap::Parser;
 use indicatif::ProgressBar;
 
 use std::collections::HashSet;
-use std::fmt::{Formatter, Display, Write};
+use std::fmt::{Display, Write};
 use std::str::FromStr;
 
 const CONFIGURATIONS : &'static [(Property, usize)] = &[
@@ -168,7 +168,7 @@ impl From<bool> for RunResult {
 
 impl std::fmt::Display for RunResult {
     fn fmt(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-        use std::fmt::{Alignment, Write};
+        use std::fmt::{Alignment};
         let width = formatter.width().unwrap_or(2);
         let (before, after) = match formatter.align() {
             None => (0, width - 2),
