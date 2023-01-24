@@ -1,0 +1,48 @@
+{
+    "to" : [
+        [
+            {
+                "Label": {
+                    "label": "scopes",
+                    "refinement": {
+                        "on_argument": [1],
+                        "on_return": false
+                    }
+                }
+            }
+        ],
+        {
+            "Function": 2
+        }
+    ],
+    "text": [
+        [
+            {
+                "Label": {
+                    "label": "sink",
+                    "refinement": {
+                        "on_argument": [1],
+                        "on_return": false
+                    }
+                }
+            }
+        ],
+        {
+            "Function": 2
+        }
+    ],
+    "Form": [
+        [
+            {
+                "Label": {
+                    "label": "sensitive",
+                    "refinement": {
+                        "on_argument": [],
+                        "on_return": false
+                    }
+                }
+            }
+        ],
+        "Type"
+    ]
+}

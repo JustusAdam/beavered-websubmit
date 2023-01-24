@@ -2,8 +2,8 @@ use lettre::sendmail::SendmailTransport;
 use lettre::Transport;
 use lettre_email::Email;
 
-#[dfpp::label{ sink, arguments = [3, 4] }]
-#[dfpp::label{ scopes, arguments = [2] }]
+#[cfg_attr(not(feature = "v-lib"), dfpp::label{ sink, arguments = [3, 4] })]
+#[cfg_attr(not(feature = "v-lib"), dfpp::label{ scopes, arguments = [2] })]
 pub(crate) fn send(
     log: slog::Logger,
     sender: String,
