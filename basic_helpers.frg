@@ -7,6 +7,18 @@ fun to_source[c: one Ctrl, o: one Type + Src] : Src {
         o = a or o in Type and a->o in c.types}
 }
 
+fun to_sink[c: one Ctrl, o: one Type + Src] : Sink {
+    arg_call_site.(to_source[o])
+}
+
+// This predicate needs work.  Right now it just asserts
+// that this call site is not influenced by control flow, but it should actually
+// ensure that function for
+// cs is called in every control flow path through c.
+pred unconditional[c: one Ctrl, cs: one CallSite] {
+    no c.ctrl_flow.cs
+}
+
 pred flows_to[cs: Ctrl, o: one Type + Src, f : (CallArgument + CallSite)] {
     some c: cs |
     let a = to_source[c, o] | {

@@ -30,8 +30,11 @@ pred one_deleter {
         (some ctrl: Ctrl, store: labeled_objects[CallArgument, stores] | flows_to[ctrl, t, store]) 
         implies
         (some f: labeled_objects[CallArgument, deletes], ot : t + t.otype | 
-            flows_to[cleanup, auth, to_source[cleanup, ot]] and
-            flows_to_noskip[cleanup, ot, f])
+         let src = to_source[cleanup, ot] | {
+            unconditional[cleanup, src]
+            flows_to[cleanup, auth, src]
+            flows_to_noskip[cleanup, ot, f]
+         })
 }
 
 test expect {
