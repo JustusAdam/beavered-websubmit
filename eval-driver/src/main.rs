@@ -5,25 +5,12 @@ use clap::Parser;
 use indicatif::ProgressBar;
 
 use std::collections::HashSet;
+use std::fmt::{Formatter, Display, Write};
+use std::str::FromStr;
 
-const CONFIGURATIONS: &'static [(&'static str, &'static [(&'static str, bool)])] = &[(
-    "del",
-    &[
-        ("edit-1-1", false),
-        ("edit-1-2", true),
-        ("edit-1-3", true),
-        ("edit-1-4-a", true),
-        ("edit-1-4-b", true),
-        ("edit-1-4-c", true),
-        ("edit-1-5", false),
-        //"edit-1-6",
-        ("edit-1-7", false),
-        ("edit-1-8", false),
-        ("edit-1-9", false),
-        ("edit-1-10", true),
-        ("edit-1-11", true),
-    ],
-)];
+const CONFIGURATIONS : &'static [(Property, usize)] = &[
+    (Property::Deletion, 3)
+];
 
 const ALL_KNOWN_VARIANTS: &'static [&'static str] = &[
     "baseline",
@@ -48,10 +35,120 @@ struct Args {
     directory: std::path::PathBuf,
 
     #[clap(long)]
-    only: Option<Vec<String>>,
+    only: Option<Vec<Edit>>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy, Eq, PartialEq, Hash)]
+enum Property {
+    Deletion,
+    Storage,
+    Disclosure,
+}
+
+impl Display for Property {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        formatter.write_str(
+            match self {
+                Property::Deletion => "del",
+                Property::Storage => "sc",
+                Property::Disclosure => "dis",
+            })
+    }
+}
+
+impl FromStr for Property {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "del" => Ok(Property::Deletion),
+            "sc" => Ok(Property::Storage),
+            "dis" => Ok(Property::Disclosure),
+            _ => Err(format!("Unknown property type {s}")),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Eq, PartialEq, Hash)]
+enum Severity {
+    Benign,
+    Bug,
+    Intentional,
+}
+
+impl Severity {
+    fn expected_result(self) -> RunResult {
+        match self {
+            Severity::Benign => RunResult::Success,
+            Severity::Bug | Severity::Intentional => RunResult::CheckError
+        }
+    }
+}
+
+impl Display for Severity {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        formatter.write_str(
+            match self {
+                Severity::Benign => "a",
+                Severity::Bug => "b",
+                Severity::Intentional => "c",
+            }
+        )
+    }
+}
+
+impl FromStr for Severity {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "a" => Ok(Severity::Benign),
+            "b" => Ok(Severity::Bug),
+            "c" => Ok(Severity::Intentional),
+            _ => Err(format!("Unrecognized severity type {s}")),
+        }
+    }
+}
+
+#[derive(Clone, Eq, PartialEq, Hash)]
+struct Edit {
+    property: Property,
+    articulation_point: usize,
+    severity: Severity,
+}
+
+impl FromStr for Edit {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut it = s.split('-');
+        let split_err = "Wrong number of '-' splits";
+        if it.next() != Some("edit") {
+            return Err("Odd start sequence".to_string());
+        }
+        let property = it.next().ok_or(split_err)?.parse()?;
+        let articulation_point = it.next().ok_or(split_err)?.parse().map_err(|e : std::num::ParseIntError| e.to_string())?;
+        let severity = it.next().ok_or(split_err)?.parse()?;
+        Ok(Edit {
+            property, articulation_point, severity
+        })
+    }
+}
+
+impl Display for Edit {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        formatter.write_str("edit-")?;
+        self.property.fmt(formatter)?;
+        formatter.write_char('-')?;
+        self.articulation_point.fmt(formatter)?;
+        formatter.write_char('-')?;
+        self.severity.fmt(formatter)?;
+        Ok(())
+    }
+}
+
+
+#[derive(Clone, Copy)]
 enum RunResult {
     Success,
     CompilationError,
@@ -67,6 +164,7 @@ impl From<bool> for RunResult {
         }
     }
 }
+
 
 impl std::fmt::Display for RunResult {
     fn fmt(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -99,19 +197,19 @@ impl std::fmt::Display for RunResult {
 }
 
 fn run_edit(
-    typ: &str,
+    typ: Property,
     versions: &[String],
-    edit: Option<&'static str>,
+    edit: Option<&Edit>,
     cd: &std::path::Path,
     verbose: bool,
     progress: &ProgressBar,
 ) -> Vec<RunResult> {
-    progress.set_message(edit.unwrap_or("default"));
+    progress.set_message(edit.map_or("default".to_string(), |e| e.to_string()));
     use std::process::*;
     let mut dfpp_cmd = Command::new("cargo");
     dfpp_cmd.current_dir(cd).arg("dfpp").stdin(Stdio::null());
     if let Some(edit) = edit {
-        dfpp_cmd.args(&["--", "--features", edit]);
+        dfpp_cmd.args(&["--", "--features", &edit.to_string()]);
     }
     if !verbose {
         dfpp_cmd.stderr(Stdio::null()).stdout(Stdio::null());
@@ -161,25 +259,29 @@ fn main() {
     };
 
     let head_cell_width = 12;
-    let body_cell_width = args.prop.iter().map(|e| e.len()).max().unwrap_or(0).max(8);
+    let body_cell_width = 8;
     let ref is_selected = {
         let as_ref_v = args
             .only
             .as_ref()
-            .map(|v| v.iter().map(String::as_str).collect::<HashSet<&str>>());
-        move |s| as_ref_v.as_ref().map_or(true, |v| v.contains(s))
+            .map(|v| v.iter().cloned().collect::<HashSet<Edit>>());
+        move |s: &Edit| as_ref_v.as_ref().map_or(true, |v| v.contains(s))
     };
 
     let num_versions = args.prop.len();
 
     let configurations: Vec<(_, Vec<_>)> = CONFIGURATIONS
         .iter()
-        .filter_map(|(t, edits)| {
-            let new_edits = edits
-                .iter()
-                .filter(|e| is_selected(e.0))
+        .flat_map(|&(property, num_edits)| {
+            assert!(num_edits > 0);
+            let new_edits = (1..=num_edits)
+                .flat_map(|articulation_point|
+                    [Severity::Benign, Severity::Bug, Severity::Intentional]
+                        .into_iter()
+                        .map(move |severity| Edit { severity, articulation_point, property})
+                        .filter(|e| is_selected(e)))
                 .collect::<Vec<_>>();
-            (!new_edits.is_empty()).then_some((t, new_edits))
+            (!new_edits.is_empty()).then_some((property, new_edits))
         })
         .collect();
 
@@ -194,7 +296,7 @@ fn main() {
 
     let progress = ProgressBar::new(num_configurations as u64).with_style(
         indicatif::ProgressStyle::default_bar()
-            .template("{msg:10} {bar:40} {pos:>3}/{len:3}")
+            .template("{msg:11} {bar:40} {pos:>3}/{len:3}")
             .unwrap(),
     );
 
@@ -202,19 +304,18 @@ fn main() {
         .iter()
         .map(|(typ, edits)| {
             (
-                typ,
+                *typ,
                 edits
                     .iter()
-                    .cloned()
                     .map(Some)
                     .chain([None])
                     .map(|e| {
                         (
                             e,
                             run_edit(
-                                typ,
-                                &args.prop,
-                                e.map(|e| e.0),
+                                *typ,
+                                args.prop.as_slice(),
+                                e,
                                 &args.directory,
                                 args.verbose,
                                 &progress,
@@ -235,9 +336,9 @@ fn main() {
             let mut false_positives = Vec::with_capacity(num_versions);
             false_positives.resize(num_versions, 0);
 
-            write!(w, " {:head_cell_width$} ", typ,)?;
-            let exp = "expected".to_string();
-            for version in [&exp].into_iter().chain(args.prop.iter()) {
+            write!(w, " {:head_cell_width$} ", typ.to_string(),)?;
+            write!(w, "| {:body_cell_width$} ", "expected")?;
+            for version in args.prop.iter() {
                 write!(w, "| {:body_cell_width$} ", version)?
             }
             writeln!(w, "")?;
@@ -247,8 +348,7 @@ fn main() {
             }
             writeln!(w, "")?;
             for (edit, versions) in results {
-                let (edit, exp_bool) = edit.cloned().unwrap_or((&"none", true));
-                let expected: RunResult = exp_bool.into();
+                let (edit, expected) = edit.map_or(("none".to_string(), RunResult::Success), |e| (e.to_string(), e.severity.expected_result()));
                 write!(w, " {:head_cell_width$} ", edit)?;
                 write!(w, "| {:^body_cell_width$} ", expected)?;
                 for (i, result) in versions.into_iter().enumerate() {
