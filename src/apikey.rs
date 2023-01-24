@@ -18,6 +18,7 @@ use std::sync::{Arc, Mutex};
 /// (username, apikey)
 #[dfpp::label(auth_witness)]
 #[dfpp::label(safe_source)]
+#[derive(Clone)]
 pub(crate) struct ApiKey {
     pub user: String,
     pub key: String,

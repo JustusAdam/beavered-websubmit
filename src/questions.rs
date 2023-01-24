@@ -13,9 +13,6 @@ use rocket_dyn_templates::Template;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-#[cfg(feature = "edit-del-2-a")]
-compile_error!("Deletion edit 2-a is not implemented");
-
 #[dfpp::label(sensitive)]
 #[dfpp::output_types(LectureAnswer)]
 #[derive(Debug, FromForm)]
@@ -120,7 +117,7 @@ pub enum Either<A,B> {
 
 #[dfpp::label(source)]
 fn get_one_answer(bg: &mut MySqlBackend, user: &str, key: u64) -> LectureAnswer {
-    let res = bg.prep_exec("SELECT * FROM answers WHERE email = ? AND num = ?", vec![user, key]);
+    let res = bg.prep_exec("SELECT * FROM answers WHERE email = ? AND num = ?", vec![user.into(), key.into()]);
     res
         .into_iter()
         .map(|r| LectureAnswer {
@@ -247,9 +244,9 @@ pub(crate) fn delete_answer_handler(apikey: ApiKey, num: u64, backend: &State<Ar
     Redirect::to("/")
 }
 
-fn delete_my_answers(bg: &mut MySqlBackend, key: &str, answers: Vec<LectureAnswer>) {
+fn delete_my_answers(bg: &mut MySqlBackend, answers: Vec<LectureAnswer>) {
     for answer in answers {
-        answer.delete_answer(&mut bg);
+        answer.delete_answer(bg);
     }
 }
 
@@ -291,10 +288,10 @@ pub(crate) fn forget_user(apikey: ApiKey, backend: &State<Arc<Mutex<MySqlBackend
                 ans.delete_answer(&mut bg);
             });
         } else if #[cfg(feature = "edit-del-3-a")] {
-            delete_my_answers(&mut bg, key, answers);
+            delete_my_answers(&mut bg, answers);
         } else if #[cfg(feature = "edit-del-3-c")] {
             if apikey.user == "impossible" {
-                delete_my_answers_controller(apikey, backend);
+                delete_my_answers_controller(apikey.clone(), backend);
             }
         } else {
             for answer in answers {
