@@ -13,8 +13,8 @@ use rocket_dyn_templates::Template;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-#[cfg(feature = "edit-1-6")]
-compile_error!("Edit 1-6 is not implemented");
+#[cfg(feature = "edit-del-2-a")]
+compile_error!("Deletion edit 2-a is not implemented");
 
 #[dfpp::label(sensitive)]
 #[dfpp::output_types(LectureAnswer)]
@@ -227,8 +227,6 @@ pub(crate) fn questions(
 }
 
 impl LectureAnswer {
-    #[cfg_attr(not(feature = "edit-1-3"), dfpp::label(deletes, arguments = [0]))]
-    #[cfg_attr(feature = "edit-1-3", dfpp::label(deletes, arguments = [0]))]
     fn delete_answer(self, bg: &mut MySqlBackend) {
         bg.delete("answers", &[("lec", self.lec.into()), ("q", self.id.into()), ("email", self.user.into())]);
     }
@@ -241,7 +239,7 @@ impl ApiKey {
     }
 }
 
-#[cfg(feature = "edit-1-7")]
+#[cfg(feature = "edit-del-3-b")]
 #[dfpp::analyze]
 #[post("/answer/delete/<num>")]
 pub(crate) fn delete_answer_handler(apikey: ApiKey, num: u64, backend: &State<Arc<Mutex<MySqlBackend>>>) -> Redirect {
@@ -249,46 +247,38 @@ pub(crate) fn delete_answer_handler(apikey: ApiKey, num: u64, backend: &State<Ar
     Redirect::to("/")
 }
 
+fn delete_my_answers(bg: &mut MySqlBackend, key: &str, answers: Vec<LectureAnswer>) {
+    for answer in answers {
+        answer.delete_answer(&mut bg);
+    }
+}
+
+#[cfg(feature = "edit-del-3-c")]
+#[post("/forget_answers")]
+fn delete_my_answers_controller(apikey: ApiKey, backend: &State<Arc<Mutex<MySqlBackend>>>) -> Redirect {
+    let mut bg = backend.lock().unwrap();
+    let key = apikey.user.as_str();
+    let mut answers = get_answers(&mut bg, Either::Right(key));
+    for answer in answers {
+        answer.delete_answer(&mut bg);
+    }
+    Redirect::to("/")
+}
 
 #[dfpp::analyze]
 #[post("/forget")]
 pub(crate) fn forget_user(apikey: ApiKey, backend: &State<Arc<Mutex<MySqlBackend>>>) -> Redirect {
     let mut bg = backend.lock().unwrap();
-    cfg_if! {
-        if #[cfg(feature = "edit-1-8")] {
-            let key = "test@test.com";
-        } else {
-            let key = apikey.user.as_str();
-        }
-    }
-    cfg_if! {
-        if #[cfg(feature = "edit-1-10")] {
-            let res = bg.prep_exec(&format!("SELECT * FROM answers WHERE email = ?"), vec![key.into()]);
-            let mut answers = res
-                .into_iter()
-                .map(|r| LectureAnswer {
-                    id: from_value(r[2].clone()),
-                    lec: from_value(r[1].clone()),
-                    user: from_value(r[0].clone()),
-                    answer: from_value(r[3].clone()),
-                    time: if let Value::Time(..) = r[4] {
-                        Some(from_value::<NaiveDateTime>(r[4].clone()))
-                    } else {
-                        None
-                    },
-                });
-        } else {
-            let mut answers = get_answers(&mut bg, Either::Right(key));
-        }
-    }
+    let key = apikey.user.as_str();
+    let mut answers = get_answers(&mut bg, Either::Right(key));
 
-    #[cfg(feature = "edit-1-11")]
+    #[cfg(feature = "edit-del-1-a")]
     apikey.delete_apikey(&mut bg);
 
     cfg_if! {
-        if #[cfg(feature = "edit-1-5")] {
+        if #[cfg(feature = "edit-del-2-c")] {
             answers.pop().unwrap().delete_answer(&mut bg);
-        } else if #[cfg(feature = "edit-1-9")] {
+        } else if #[cfg(feature = "edit-del-1-c")] {
             LectureAnswer {
                 id: 0,
                 lec: 0,
@@ -296,16 +286,22 @@ pub(crate) fn forget_user(apikey: ApiKey, backend: &State<Arc<Mutex<MySqlBackend
                 answer: "dummy".to_string(),
                 time: None,
             }.delete_answer(&mut bg);
+        } else if #[cfg(feature = "edit-del-2-a")] {
+            answers.into_iter().for_each(|ans| {
+                ans.delete_answer(&mut bg);
+            });
+        } else if #[cfg(feature = "edit-del-3-a")] {
+            delete_my_answers(&mut bg, key, answers);
+        } else if #[cfg(feature = "edit-del-3-c")] {
+            if apikey.user == "impossible" {
+                delete_my_answers_controller(apikey, backend);
+            }
         } else {
             for answer in answers {
                 cfg_if! {
-                    if #[cfg(any(feature = "edit-1-1", feature = "edit-1-7"))] {
-                    } else if #[cfg(any(feature = "edit-1-2", feature = "edit-1-4-a"))] {
-                        bg.delete("answers", &[("lec", answer.lec.into()), ("q", answer.id.into()), ("email", answer.user.into())]);
-                    } else if #[cfg(feature = "edit-1-4-b")] {
+                    if #[cfg(any(feature = "edit-del-1-b", feature = "edit-del-3-b"))] {
+                    } else if #[cfg(feature = "edit-del-2-b")] {
                         bg.delete("answers", &[("lec", answer.lec.into()), ("q", answer.id.into())]);
-                    } else if #[cfg(feature = "edit-1-4-c")] {
-                        bg.delete("answers", &[("lec", answer.lec.into()), ("email", answer.user.into())]);
                     } else {
                         answer.delete_answer(&mut bg);
                     }
@@ -314,7 +310,7 @@ pub(crate) fn forget_user(apikey: ApiKey, backend: &State<Arc<Mutex<MySqlBackend
         }
     }
 
-    #[cfg(not(feature = "edit-1-11"))]
+    #[cfg(not(feature = "edit-del-1-a"))]
     apikey.delete_apikey(&mut bg);
     Redirect::to("/")
 }

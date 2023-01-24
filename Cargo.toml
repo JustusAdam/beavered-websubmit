@@ -25,19 +25,13 @@ cfg-if = "1.0.0"
 
 [features]
 # Edit features as listed in https://www.notion.so/justus-adam/Set-of-edits-to-websubmit-to-evaluate-b835920560584792be72a51ffda1e372
-edit-1-1 = []
-edit-1-2 = []
-edit-1-3 = []
-edit-1-4-a = []
-edit-1-4-b = []
-edit-1-4-c = []
-edit-1-5 = []
-edit-1-6 = []
-edit-1-7 = []
-edit-1-8 = []
-edit-1-9 = []
-edit-1-10 = []
-edit-1-11 = []
+edit-del-1-b = []
+edit-del-2-b = []
+edit-del-2-a = []
+edit-del-2-c = []
+edit-del-3-b = []
+edit-del-1-c = []
+edit-del-1-a = []
 
 [dependencies.rocket_dyn_templates]
 version = "0.1.0-rc.1"
