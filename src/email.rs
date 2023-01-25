@@ -2,8 +2,8 @@ use lettre::sendmail::SendmailTransport;
 use lettre::Transport;
 use lettre_email::Email;
 
-#[cfg_attr(not(feature = "v-lib"), dfpp::label{ sink, arguments = [3, 4] })]
-#[cfg_attr(not(feature = "v-lib"), dfpp::label{ scopes, arguments = [2] })]
+#[cfg_attr(not(feature = "v-ann-lib"), dfpp::label{ sink, arguments = [3, 4] })]
+#[cfg_attr(not(feature = "v-ann-lib"), dfpp::label{ scopes, arguments = [2] })]
 pub(crate) fn send(
     log: slog::Logger,
     sender: String,
@@ -21,7 +21,7 @@ pub(crate) fn send(
         builder = builder.to(recipient);
     }
 
-    debug!(log, "Email: Subject {}\nText: {}!", subject, text);
+    //debug!(log, "Email: Subject {}\nText: {}!", subject, text);
 
     let email = builder.build();
     match email {

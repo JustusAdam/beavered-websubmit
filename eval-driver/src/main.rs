@@ -23,9 +23,14 @@ const ALL_KNOWN_VARIANTS: &'static [&'static str] = &[
 /// version is already present and in the $PATH.
 #[derive(Parser)]
 struct Args {
-    /// Print complete error messages for called programs on failure
+    /// Print complete error messages for called programs on failure (implies
+    /// `--verbose-commands`)
     #[clap(long)]
     verbose: bool,
+
+    /// Print the shell commands we are running
+    #[clap(long)]
+    verbose_commands: bool,
 
     /// Version of the properties to run
     prop: Vec<String>,
@@ -34,8 +39,16 @@ struct Args {
     #[clap(long, default_value = "..")]
     directory: std::path::PathBuf,
 
+    /// Only run the specified edits. Uses the same format as printing edits,
+    /// aka `edit-<property>-<articulation point>-<short edit type>`, e.g. `edit-del-2-a`
     #[clap(long)]
     only: Option<Vec<Edit>>,
+}
+
+impl Args {
+    fn verbose_commands(&self) -> bool {
+        self.verbose || self.verbose_commands
+    }
 }
 
 #[derive(Clone, Copy, Eq, PartialEq, Hash)]
@@ -202,31 +215,38 @@ fn run_edit(
     edit: Option<&Edit>,
     cd: &std::path::Path,
     verbose: bool,
+    verbose_commands: bool,
     progress: &ProgressBar,
 ) -> Vec<RunResult> {
     progress.set_message(edit.map_or("default".to_string(), |e| e.to_string()));
     use std::process::*;
-    let mut dfpp_cmd = Command::new("cargo");
-    dfpp_cmd.current_dir(cd).arg("dfpp").stdin(Stdio::null());
-    if let Some(edit) = edit {
-        dfpp_cmd.args(&["--", "--features", &edit.to_string()]);
-    }
-    if !verbose {
-        dfpp_cmd.stderr(Stdio::null()).stdout(Stdio::null());
-    }
-    let status = dfpp_cmd.status().unwrap();
-    progress.inc(1);
-    if !status.success() {
-        let handled = versions.len();
-        progress.inc(handled as u64);
-        return std::iter::repeat(RunResult::CompilationError)
-            .take(handled)
-            .collect();
-    }
+
 
     versions
         .iter()
         .map(|version| {
+            let mut dfpp_cmd = Command::new("cargo");
+            dfpp_cmd.current_dir(cd).arg("dfpp").stdin(Stdio::null());
+            dfpp_cmd.args(&["--external-annotations", "external_annotations.json"]);
+            dfpp_cmd.args(&["--", "--features", &format!("v-ann-{version}")]);
+            if let Some(edit) = edit {
+                dfpp_cmd.args(&["--features", &edit.to_string()]);
+            }
+            if !verbose {
+                dfpp_cmd.stderr(Stdio::null()).stdout(Stdio::null());
+            }
+            if verbose_commands {
+                progress.suspend(||
+                    println!("Executing compile command: {:?}", dfpp_cmd)
+                );
+            }
+            let status = dfpp_cmd.status().unwrap();
+            progress.inc(1);
+            if !status.success() {
+                progress.inc(1);
+                return RunResult::CompilationError
+            }
+
             let propfile = format!("{version}-{typ}-props.frg");
             let mut racket_cmd = Command::new("racket");
             racket_cmd
@@ -235,6 +255,11 @@ fn run_edit(
                 .stdin(Stdio::null());
             if !verbose {
                 racket_cmd.stderr(Stdio::null()).stdout(Stdio::null());
+            }
+            if verbose_commands {
+                progress.suspend(||
+                    println!("Executing check command: {:?}", racket_cmd)
+                );
             }
             let status = racket_cmd.status().unwrap();
             progress.inc(1);
@@ -291,8 +316,8 @@ fn main() {
             |(_, inner)| inner.len() + 1, // default (no edits)
         )
         .sum::<usize>()
-        * (1 // compile 
-            + num_versions);
+        * (2 // compile 
+            * num_versions);
 
     let progress = ProgressBar::new(num_configurations as u64).with_style(
         indicatif::ProgressStyle::default_bar()
@@ -318,6 +343,7 @@ fn main() {
                                 e,
                                 &args.directory,
                                 args.verbose,
+                                args.verbose_commands(),
                                 &progress,
                             ),
                         )

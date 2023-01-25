@@ -13,14 +13,14 @@ use rocket_dyn_templates::Template;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-#[cfg_attr(not(feature = "v-lib"), dfpp::label(sensitive))]
-#[dfpp::output_types(LectureAnswer)]
+#[cfg_attr(not(feature = "v-ann-lib"), dfpp::label(sensitive))]
+#[cfg_attr(not(feature = "v-ann-lib"), dfpp::output_types(LectureAnswer))]
 #[derive(Debug, FromForm)]
 pub(crate) struct LectureQuestionSubmission {
     answers: HashMap<u64, String>,
 }
 
-#[cfg_attr(not(feature = "v-lib"), dfpp::label(sensitive))]
+#[cfg_attr(not(feature = "v-ann-lib"), dfpp::label(sensitive))]
 #[derive(Serialize)]
 pub(crate) struct LectureQuestion {
     pub id: u64,
@@ -37,7 +37,7 @@ pub(crate) struct LectureQuestionsContext {
     pub parent: &'static str,
 }
 
-#[cfg_attr(not(feature = "v-lib"), dfpp::label(sensitive))]
+#[cfg_attr(not(feature = "v-ann-lib"), dfpp::label(sensitive))]
 #[derive(Serialize)]
 struct LectureAnswer {
     id: u64,
@@ -135,7 +135,7 @@ fn get_one_answer(bg: &mut MySqlBackend, user: &str, key: u64) -> LectureAnswer 
         .unwrap()
 }
 
-#[dfpp::label(source)]
+#[cfg_attr(not(feature = "v-ann-lib"), dfpp::label(source))]
 fn get_answers(bg: &mut MySqlBackend, key: Either<u64, &str>) -> Vec<LectureAnswer> {
     let (where_, key) = match key {
         Either::Left(lec) => ("lec", lec.into()),
@@ -225,14 +225,14 @@ pub(crate) fn questions(
 
 impl LectureAnswer {
 
-    #[cfg_attr(not(feature = "v-lib"), dfpp::label(deletes, arguments = [0]))]
+    #[cfg_attr(not(feature = "v-ann-lib"), dfpp::label(deletes, arguments = [0]))]
     fn delete_answer(self, bg: &mut MySqlBackend) {
         bg.delete("answers", &[("lec", self.lec.into()), ("q", self.id.into()), ("email", self.user.into())]);
     }
 }
 
 impl ApiKey {
-    #[cfg_attr(not(feature = "v-lib"), dfpp::label(deletes, arguments = [0]))]
+    #[cfg_attr(not(feature = "v-ann-lib"), dfpp::label(deletes, arguments = [0]))]
     fn delete_apikey(self, bg: &mut MySqlBackend) {
         bg.delete("users", &[("email", self.user.into())])
     }
@@ -314,8 +314,8 @@ pub(crate) fn forget_user(apikey: ApiKey, backend: &State<Arc<Mutex<MySqlBackend
     Redirect::to("/")
 }
 
-#[cfg_attr(not(feature = "v-lib"), dfpp::label(presenter, return))]
-#[cfg_attr(not(feature = "v-lib"), dfpp::label(safe_source, return))]
+#[cfg_attr(not(feature = "v-ann-lib"), dfpp::label(presenter, return))]
+#[cfg_attr(not(feature = "v-ann-lib"), dfpp::label(safe_source, return))]
 fn get_presenters(bg: &mut MySqlBackend, num: u8) -> Vec<String> {
     let mut presenter_emails = vec![];
     let presenters_res = bg.prep_exec("SELECT * FROM presenters WHERE lec = ?;", vec![num.into()]);
@@ -326,8 +326,8 @@ fn get_presenters(bg: &mut MySqlBackend, num: u8) -> Vec<String> {
     presenter_emails
 }
 
-#[cfg_attr(not(feature = "v-lib"), dfpp::label(safe_source, return))]
-#[cfg_attr(not(feature = "v-lib"), dfpp::label(cfg_source, return))]
+#[cfg_attr(not(feature = "v-ann-lib"), dfpp::label(safe_source, return))]
+#[cfg_attr(not(feature = "v-ann-lib"), dfpp::label(cfg_source, return))]
 fn get_staff(config: &State<Config>, num: u8) -> Vec<String> {
     let recipients = if num < 90 {
         config.staff.clone()
@@ -337,7 +337,7 @@ fn get_staff(config: &State<Config>, num: u8) -> Vec<String> {
     recipients
 }
 
-#[cfg_attr(not(feature = "v-lib"), dfpp::label(scopes, return))]
+#[cfg_attr(not(feature = "v-ann-lib"), dfpp::label(scopes, return))]
 fn scopes_argument<T: Clone>(field: &T) -> T {
     return field.clone();
 }

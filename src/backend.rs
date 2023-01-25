@@ -57,6 +57,7 @@ impl MySqlBackend {
     }
 
     #[dfpp::label(source)]
+    #[cfg_attr(feature = "v-ann-lib", dfpp::label(from_storage, return))]
     pub fn prep_exec(&mut self, sql: &str, params: Vec<Value>) -> Vec<Vec<Value>> {
         if !self.prep_stmts.contains_key(sql) {
             let stmt = self
@@ -104,7 +105,7 @@ impl MySqlBackend {
         self.do_insert(table, vals, true);
     }
 
-    #[cfg_attr(any(feature = "edit-del-2-b"), dfpp::label(deletes, arguments = [2]))]
+    #[dfpp::label(deletes, arguments = [2])]
     pub fn delete(&mut self, table: &str, criteria: &[(&str, Value)]) {
         let (where_parts, vals): (Vec<_>, Vec<_>) = criteria.iter().map(|(id, v)| (format!("{id} = ?"), v)).unzip();
         let where_ = where_parts.join(" AND ");
