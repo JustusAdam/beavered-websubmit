@@ -15,7 +15,7 @@ pred one_deleter {
                 flows_to[cleanup, v, f])}
 }
 
-run {} for Flows
+//run {} for Flows
 
 
 test expect {
