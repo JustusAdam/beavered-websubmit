@@ -11,6 +11,8 @@ use rocket::response::Redirect;
 use rocket::State;
 use rocket_dyn_templates::Template;
 use std::collections::HashMap;
+use std::collections::hash_map::DefaultHasher;
+use std::hash::Hash;
 use std::sync::{Arc, Mutex};
 
 #[cfg_attr(not(feature = "v-ann-lib"), dfpp::label(sensitive))]
@@ -347,8 +349,8 @@ fn get_admins(config: &State<Config>) -> Vec<String> {
 }
 
 #[cfg_attr(not(feature = "v-ann-lib"), dfpp::label(scopes, return))]
-fn scopes_argument<T: Clone>(field: &T) -> T {
-    return field.clone();
+fn scopes_argument<T>(field: T) -> T {
+    field
 }
 
 #[post("/<num>", data = "<data>")]
@@ -395,9 +397,33 @@ pub(crate) fn questions_submit_internal(
 	}
 
     for (id, answer) in &data.answers {
+        cfg_if!{
+            if #[cfg(feature = "edit-sc-1-a")] {
+                let mut hasher = DefaultHasher::new();
+                apikey.user.hash(&mut hasher);
+                let ref key = format!("{}", std::hash::Hasher::finish(&hasher));
+            } else if #[cfg(feature = "edit-sc-1-c")] {
+                let dummy = ApiKey {
+                    user: "user".to_string(),
+                    key: "key".to_string(),
+                };
+                let key = &dummy.key;
+            } else {
+                let key = &apikey.user.to_string();
+            }
+        }
+        cfg_if!{
+            if #[cfg(feature = "edit-sc-1-b")] {
+                let num = key.into();
+                let key = vnum.clone().into();
+            } else {
+                let key = key.into();
+                let num = vnum.clone().into();
+            }
+        }
         let rec: Vec<Value> = vec![ 
-            scopes_argument(&apikey.user).into(),
-            vnum.clone(),
+            scopes_argument(key),
+            num,
             (*id).into(),
             answer.clone().into(),
             ts.clone(),
