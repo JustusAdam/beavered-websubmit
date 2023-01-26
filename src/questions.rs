@@ -15,6 +15,11 @@ use std::collections::hash_map::DefaultHasher;
 use std::hash::Hash;
 use std::sync::{Arc, Mutex};
 
+#[cfg(feature = "edit-dis-3-a")]
+extern crate rustc_serialize;
+#[cfg(feature = "edit-dis-3-a")]
+use rustc_serialize::json;
+
 #[cfg_attr(not(feature = "v-ann-lib"), dfpp::label(sensitive))]
 #[cfg_attr(not(feature = "v-ann-lib"), dfpp::output_types(LectureAnswer))]
 #[derive(Debug, FromForm)]
@@ -431,14 +436,24 @@ pub(crate) fn questions_submit_internal(
         bg.replace("answers", rec);
     }
 
-    let answer_log = format!(
-        "{}",
-        data.answers
-            .iter()
-            .map(|(i, t)| format!("Question {}:\n{}", i, t))
-            .collect::<Vec<_>>()
-            .join("\n-----\n")
-    );
+	cfg_if! {
+		if #[cfg(feature = "edit-dis-3-a")] {
+			let answer_log = json::encode(&data.answers).unwrap();
+		} else {
+			let answer_log = format!(
+				"{}",
+				data.answers
+					.iter()
+					.map(|(i, t)| format!("Question {}:\n{}", i, t))
+					.collect::<Vec<_>>()
+					.join("\n-----\n")
+			);
+		}
+	}
+
+	#[cfg(feature = "edit-dis-3-b")]
+	println!("{}", answer_log);
+
     if config.send_emails {
 		cfg_if! {
             if #[cfg(feature = "edit-dis-1-a")] {
