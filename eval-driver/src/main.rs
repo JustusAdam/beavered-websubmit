@@ -8,16 +8,10 @@ use std::collections::HashSet;
 use std::fmt::{Display, Write};
 use std::str::FromStr;
 
-const CONFIGURATIONS : &'static [(Property, usize)] = &[
-    (Property::Deletion, 3),
-    (Property::Storage, 1),
-];
+const CONFIGURATIONS: &'static [(Property, usize)] =
+    &[(Property::Deletion, 3), (Property::Storage, 1)];
 
-const ALL_KNOWN_VARIANTS: &'static [&'static str] = &[
-    "lib",
-    "baseline",
-    "strict",
-];
+const ALL_KNOWN_VARIANTS: &'static [&'static str] = &["lib", "baseline", "strict"];
 
 /// Batch executor for the evaluation of our 2023 HotOS paper.
 ///
@@ -67,12 +61,11 @@ enum Property {
 
 impl Display for Property {
     fn fmt(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-        formatter.write_str(
-            match self {
-                Property::Deletion => "del",
-                Property::Storage => "sc",
-                Property::Disclosure => "dis",
-            })
+        formatter.write_str(match self {
+            Property::Deletion => "del",
+            Property::Storage => "sc",
+            Property::Disclosure => "dis",
+        })
     }
 }
 
@@ -100,20 +93,18 @@ impl Severity {
     fn expected_result(self) -> RunResult {
         match self {
             Severity::Benign => RunResult::Success,
-            Severity::Bug | Severity::Intentional => RunResult::CheckError
+            Severity::Bug | Severity::Intentional => RunResult::CheckError,
         }
     }
 }
 
 impl Display for Severity {
     fn fmt(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-        formatter.write_str(
-            match self {
-                Severity::Benign => "a",
-                Severity::Bug => "b",
-                Severity::Intentional => "c",
-            }
-        )
+        formatter.write_str(match self {
+            Severity::Benign => "a",
+            Severity::Bug => "b",
+            Severity::Intentional => "c",
+        })
     }
 }
 
@@ -147,10 +138,16 @@ impl FromStr for Edit {
             return Err("Odd start sequence".to_string());
         }
         let property = it.next().ok_or(split_err)?.parse()?;
-        let articulation_point = it.next().ok_or(split_err)?.parse().map_err(|e : std::num::ParseIntError| e.to_string())?;
+        let articulation_point = it
+            .next()
+            .ok_or(split_err)?
+            .parse()
+            .map_err(|e: std::num::ParseIntError| e.to_string())?;
         let severity = it.next().ok_or(split_err)?.parse()?;
         Ok(Edit {
-            property, articulation_point, severity
+            property,
+            articulation_point,
+            severity,
         })
     }
 }
@@ -166,7 +163,6 @@ impl Display for Edit {
         Ok(())
     }
 }
-
 
 #[derive(Clone, Copy)]
 enum RunResult {
@@ -185,10 +181,9 @@ impl From<bool> for RunResult {
     }
 }
 
-
 impl std::fmt::Display for RunResult {
     fn fmt(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-        use std::fmt::{Alignment};
+        use std::fmt::Alignment;
         let width = formatter.width().unwrap_or(2);
         let (before, after) = match formatter.align() {
             None => (0, width - 2),
@@ -228,15 +223,18 @@ fn run_edit(
     progress.set_message(edit.map_or("default".to_string(), |e| e.to_string()));
     use std::process::*;
 
-
     versions
         .iter()
         .map(|version| {
             let mut dfpp_cmd = Command::new("cargo");
             dfpp_cmd.current_dir(cd).arg("dfpp").stdin(Stdio::null());
-            let external_ann_file : std::path::PathBuf = format!("{version}-external-annotations.json").into();
+            let external_ann_file: std::path::PathBuf =
+                format!("{version}-external-annotations.json").into();
             if external_ann_file.exists() {
-                dfpp_cmd.args(&["--external-annotations", external_ann_file.to_str().unwrap()]);
+                dfpp_cmd.args(&[
+                    "--external-annotations",
+                    external_ann_file.to_str().unwrap(),
+                ]);
             }
             dfpp_cmd.args(&["--", "--features", &format!("v-ann-{version}")]);
             if let Some(edit) = edit {
@@ -246,15 +244,13 @@ fn run_edit(
                 dfpp_cmd.stderr(Stdio::null()).stdout(Stdio::null());
             }
             if verbose_commands {
-                progress.suspend(||
-                    println!("Executing compile command: {:?}", dfpp_cmd)
-                );
+                progress.suspend(|| println!("Executing compile command: {:?}", dfpp_cmd));
             }
             let status = dfpp_cmd.status().unwrap();
             progress.inc(1);
             if !status.success() {
                 progress.inc(1);
-                return RunResult::CompilationError
+                return RunResult::CompilationError;
             }
 
             let propfile = format!("{version}-{typ}-props.frg");
@@ -267,9 +263,7 @@ fn run_edit(
                 racket_cmd.stderr(Stdio::null()).stdout(Stdio::null());
             }
             if verbose_commands {
-                progress.suspend(||
-                    println!("Executing check command: {:?}", racket_cmd)
-                );
+                progress.suspend(|| println!("Executing check command: {:?}", racket_cmd));
             }
             let status = racket_cmd.status().unwrap();
             progress.inc(1);
@@ -288,7 +282,11 @@ fn main() {
         let mut args = Args::parse();
         if args.property_versions.is_empty() {
             println!("INFO: No specification variants to run given, running all known ones");
-            args.property_versions = ALL_KNOWN_VARIANTS.iter().cloned().map(str::to_string).collect();
+            args.property_versions = ALL_KNOWN_VARIANTS
+                .iter()
+                .cloned()
+                .map(str::to_string)
+                .collect();
         }
         args
     };
@@ -307,15 +305,24 @@ fn main() {
 
     let configurations: Vec<(_, Vec<_>)> = CONFIGURATIONS
         .iter()
-        .filter(|conf| args.only_property.as_ref().map_or(true, |p| p.contains(&conf.0)))
+        .filter(|conf| {
+            args.only_property
+                .as_ref()
+                .map_or(true, |p| p.contains(&conf.0))
+        })
         .flat_map(|&(property, num_edits)| {
             assert!(num_edits > 0);
             let new_edits = (1..=num_edits)
-                .flat_map(|articulation_point|
+                .flat_map(|articulation_point| {
                     [Severity::Benign, Severity::Bug, Severity::Intentional]
                         .into_iter()
-                        .map(move |severity| Edit { severity, articulation_point, property})
-                        .filter(|e| is_selected(e)))
+                        .map(move |severity| Edit {
+                            severity,
+                            articulation_point,
+                            property,
+                        })
+                        .filter(|e| is_selected(e))
+                })
                 .collect::<Vec<_>>();
             (!new_edits.is_empty()).then_some((property, new_edits))
         })
@@ -385,7 +392,9 @@ fn main() {
             }
             writeln!(w, "")?;
             for (edit, versions) in results {
-                let (edit, expected) = edit.map_or(("none".to_string(), RunResult::Success), |e| (e.to_string(), e.severity.expected_result()));
+                let (edit, expected) = edit.map_or(("none".to_string(), RunResult::Success), |e| {
+                    (e.to_string(), e.severity.expected_result())
+                });
                 write!(w, " {:head_cell_width$} ", edit)?;
                 write!(w, "| {:^body_cell_width$} ", expected)?;
                 for (i, result) in versions.into_iter().enumerate() {
