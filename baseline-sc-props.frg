@@ -10,7 +10,7 @@ open "framework_helpers.frg"
 pred stores_to_authorized {
     all c: Ctrl, a : labeled_objects[InputArgument + Type, sensitive], f : CallSite | 
         (some r : labeled_objects[arguments[f], stores] | flows_to[c, a, r]) 
-        implies authorized[recipients[f, c], c]
+        implies some_authorized[all_recipients[f, c], c]
 }
 
 
