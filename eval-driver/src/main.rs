@@ -35,7 +35,7 @@ struct Args {
     verbose_commands: bool,
 
     /// Version of the properties to run
-    prop: Vec<String>,
+    property_versions: Vec<String>,
 
     /// Location of the WebSubmit repo
     #[clap(long, default_value = "..")]
@@ -283,9 +283,9 @@ fn main() {
     use std::io::Write;
     let args = {
         let mut args = Args::parse();
-        if args.prop.is_empty() {
+        if args.property_versions.is_empty() {
             println!("INFO: No specification variants to run given, running all known ones");
-            args.prop = ALL_KNOWN_VARIANTS.iter().cloned().map(str::to_string).collect();
+            args.property_versions = ALL_KNOWN_VARIANTS.iter().cloned().map(str::to_string).collect();
         }
         args
     };
@@ -300,7 +300,7 @@ fn main() {
         move |s: &Edit| as_ref_v.as_ref().map_or(true, |v| v.contains(s))
     };
 
-    let num_versions = args.prop.len();
+    let num_versions = args.property_versions.len();
 
     let configurations: Vec<(_, Vec<_>)> = CONFIGURATIONS
         .iter()
@@ -347,7 +347,7 @@ fn main() {
                             e,
                             run_edit(
                                 *typ,
-                                args.prop.as_slice(),
+                                args.property_versions.as_slice(),
                                 e,
                                 &args.directory,
                                 args.verbose,
@@ -372,12 +372,12 @@ fn main() {
 
             write!(w, " {:head_cell_width$} ", typ.to_string(),)?;
             write!(w, "| {:body_cell_width$} ", "expected")?;
-            for version in args.prop.iter() {
+            for version in args.property_versions.iter() {
                 write!(w, "| {:body_cell_width$} ", version)?
             }
             writeln!(w, "")?;
             write!(w, "-{:-<head_cell_width$}-", "")?;
-            for _ in 0..args.prop.len() + 1 {
+            for _ in 0..args.property_versions.len() + 1 {
                 write!(w, "+-{:-<body_cell_width$}-", "")?
             }
             writeln!(w, "")?;
@@ -396,7 +396,7 @@ fn main() {
                 writeln!(w, "")?;
             }
             write!(w, "-{:-<head_cell_width$}-", "")?;
-            for _ in 0..args.prop.len() + 1 {
+            for _ in 0..args.property_versions.len() + 1 {
                 write!(w, "+-{:-<body_cell_width$}-", "")?
             }
             writeln!(w, "")?;
