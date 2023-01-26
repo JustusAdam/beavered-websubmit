@@ -9,12 +9,14 @@ use std::fmt::{Display, Write};
 use std::str::FromStr;
 
 const CONFIGURATIONS : &'static [(Property, usize)] = &[
-    (Property::Deletion, 3)
+    (Property::Deletion, 3),
+    (Property::Storage, 1),
 ];
 
 const ALL_KNOWN_VARIANTS: &'static [&'static str] = &[
+    "lib",
     "baseline",
-    "strict"
+    "strict",
 ];
 
 /// Batch executor for the evaluation of our 2023 HotOS paper.
@@ -43,6 +45,11 @@ struct Args {
     /// aka `edit-<property>-<articulation point>-<short edit type>`, e.g. `edit-del-2-a`
     #[clap(long)]
     only: Option<Vec<Edit>>,
+
+    /// Only run these properties (similar to --only but selects edits for a
+    /// whole property)
+    #[clap(long)]
+    only_property: Option<Vec<Property>>,
 }
 
 impl Args {
@@ -297,6 +304,7 @@ fn main() {
 
     let configurations: Vec<(_, Vec<_>)> = CONFIGURATIONS
         .iter()
+        .filter(|conf| args.only_property.as_ref().map_or(true, |p| p.contains(&conf.0)))
         .flat_map(|&(property, num_edits)| {
             assert!(num_edits > 0);
             let new_edits = (1..=num_edits)
