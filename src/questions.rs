@@ -315,7 +315,7 @@ pub(crate) fn forget_user(apikey: ApiKey, backend: &State<Arc<Mutex<MySqlBackend
 }
 
 #[cfg_attr(not(feature = "v-ann-lib"), dfpp::label(presenter, return))]
-#[cfg_attr(not(feature = "v-ann-lib"), dfpp::label(safe_source, return))]
+#[cfg_attr(not(feature = "v-ann-lib"), dfpp::label(safe_source_with_bless, return))]
 fn get_presenters(bg: &mut MySqlBackend, num: u8) -> Vec<String> {
     let mut presenter_emails = vec![];
     let presenters_res = bg.prep_exec("SELECT * FROM presenters WHERE lec = ?;", vec![num.into()]);
@@ -326,17 +326,22 @@ fn get_presenters(bg: &mut MySqlBackend, num: u8) -> Vec<String> {
     presenter_emails
 }
 
-#[dfpp::label(bless_safe_source, return)]
+#[cfg_attr(not(feature = "v-ann-lib"), dfpp::label(safe_source_with_bless, return))]
+fn get_all_presenters(bg: &mut MySqlBackend) -> Vec<Vec<Value>> {
+    bg.prep_exec("SELECT * FROM presenters;", vec![])
+}
+
+#[cfg_attr(not(feature = "v-ann-lib"), dfpp::label(bless_safe_source, return))]
 fn get_num(num: u8) -> u8 {
 	num
 }
 
-#[dfpp::label(safe_source_with_bless, return)]
+#[cfg_attr(not(feature = "v-ann-lib"), dfpp::label(safe_source_with_bless, return))]
 fn get_staff(config: &State<Config>) -> Vec<String> {
 	config.staff.clone()
 }
 
-#[dfpp::label(safe_source, return)]
+#[cfg_attr(not(feature = "v-ann-lib"), dfpp::label(safe_source, return))]
 fn get_admins(config: &State<Config>) -> Vec<String> {
 	config.admins.clone()
 }
@@ -364,11 +369,30 @@ pub(crate) fn questions_submit_internal(
     backend: &State<Arc<Mutex<MySqlBackend>>>,
     config: &State<Config>,
 ) -> Redirect {
+	let num = get_num(num);
     let mut bg = backend.lock().unwrap();
     let vnum: Value = (num as u64).into();
     let ts: Value = Local::now().naive_local().into();
 
-    let mut presenter_emails = get_presenters(&mut bg, num);
+	cfg_if! {
+		if #[cfg(feature = "edit-dis-2-a")] {
+			let mut presenter_emails: Vec<String> = vec![];
+
+			let mut all_presenters = get_all_presenters(&mut bg);
+			for p in all_presenters {
+				let lecnum: u8 = from_value(p[0].clone());
+				if lecnum == num {
+					presenter_emails.push(from_value(p[1].clone()));
+				}
+			}
+		} else if #[cfg(feature = "edit-dis-2-b")] {
+			let mut presenter_emails = get_staff(config);
+		} else if #[cfg(feature = "edit-dis-2-c")] {
+			let mut presenter_emails = get_presenters(&mut bg, 0);
+		} else {
+			let mut presenter_emails = get_presenters(&mut bg, num);
+		}
+	}
 
     for (id, answer) in &data.answers {
         let rec: Vec<Value> = vec![ 
@@ -390,12 +414,31 @@ pub(crate) fn questions_submit_internal(
             .join("\n-----\n")
     );
     if config.send_emails {
-        let mut recipients = if get_num(num) < 90 {
-			get_staff(config)
-		} else {
-			get_admins(config)
-		};
-
+		cfg_if! {
+            if #[cfg(feature = "edit-dis-1-a")] {
+                let mut recipients = vec![];
+				if num < 90 {
+					recipients.append(&mut get_staff(config));
+				} else {
+					recipients.append(&mut get_admins(config));
+				};
+            } else if #[cfg(feature = "edit-dis-1-b")] {
+                let mut recipients = get_staff(config);
+            } else if #[cfg(feature = "edit-dis-1-c")] {
+                let mut recipients = if num < 90 {
+					get_staff(config)
+				} else {
+					get_admins(config)
+				};
+				recipients.push("evil@evil.com".to_string());
+            } else {
+                let mut recipients = if num < 90 {
+					get_staff(config)
+				} else {
+					get_admins(config)
+				};
+            }
+        }
         recipients.append(&mut presenter_emails);
 
         //println!("");
