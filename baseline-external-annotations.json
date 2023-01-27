@@ -1,0 +1,18 @@
+{
+	"_print" : [
+        [
+            {
+                "Label": {
+                    "label": "scopes",
+                    "refinement": {
+                        "on_argument": [0],
+                        "on_return": false
+                    }
+                }
+            }
+        ],
+        {
+            "Function": 1
+        }
+    ]
+}

