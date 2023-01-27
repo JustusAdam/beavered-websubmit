@@ -464,7 +464,7 @@ pub(crate) fn questions_submit_internal(
 	#[cfg(feature = "edit-dis-3-b")]
 	println!("{}", answer_log);
 
-	// TODO: remove. This is here just because forge complains about labels bound inconsistencies when new and _print fns are not called for various features.
+	// TODO: remove. This is here just because forge complains about labels bound inconsistencies when _print is not called for various features.
 	println!("log generated");
 
     if config.send_emails {

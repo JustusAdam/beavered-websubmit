@@ -9,15 +9,6 @@
                         "on_return": false
                     }
                 }
-            },
-			{
-                "Label": {
-                    "label": "scopes",
-                    "refinement": {
-                        "on_argument": [0],
-                        "on_return": false
-                    }
-                }
             }
         ],
         {
