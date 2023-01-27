@@ -42,10 +42,10 @@ test expect {
         one_deleter
     } for Flows is theorem
 
-    // // Storage properties
-    // stores_are_safe: {
-    //     stores_to_authorized
-    // } for Flows is theorem
+    // Storage properties
+    stores_are_safe: {
+        stores_to_authorized
+    } for Flows is theorem
 
 
     // Happens-before properties
