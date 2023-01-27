@@ -13,10 +13,10 @@ fun all_recipients[f: CallSite, ctrl: Ctrl] : set Src {
     ^(ctrl.flow + arg_call_site).(labeled_objects[arguments[f], scopes]) & Src
 }
 
-fun all_scopes[c: Ctrl] : set Object {
-	labeled_objects_with_types[c, Object, scopes] + {
-		r : Return | {
-			flows_to_ctrl[c, labeled_objects_with_types[c, Object, sensitive], r]
+fun all_scopes[f: Sink, c: Ctrl] : set Object {
+	labeled_objects[arguments[f.arg_call_site], scopes] + {
+		arg : c.types.(`ApiKey + `Admin) & InputArgument | {
+			some (f & Return)
 		}
 	}
 }
