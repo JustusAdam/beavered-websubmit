@@ -228,12 +228,14 @@ fn run_edit(
         .map(|version| {
             let mut dfpp_cmd = Command::new("cargo");
             dfpp_cmd.current_dir(cd).arg("dfpp").stdin(Stdio::null());
-            let external_ann_file: std::path::PathBuf =
-                format!("{version}-external-annotations.json").into();
+            let external_ann_file_name =
+                format!("{version}-external-annotations.json");
+            let mut external_ann_file : std::path::PathBuf = cd.into();
+            external_ann_file.push(&external_ann_file_name);
             if external_ann_file.exists() {
                 dfpp_cmd.args(&[
                     "--external-annotations",
-                    external_ann_file.to_str().unwrap(),
+                    external_ann_file_name.as_str(),
                 ]);
             }
             dfpp_cmd.args(&["--", "--features", &format!("v-ann-{version}")]);
