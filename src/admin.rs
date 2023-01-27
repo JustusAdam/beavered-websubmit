@@ -13,8 +13,11 @@ use rocket_dyn_templates::Template;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-#[cfg_attr(feature = "edit-dis-3-a", dfpp::label(safe_return))]
-pub(crate) struct Admin;
+#[cfg_attr(not(feature = "v-ann-lib"), dfpp::label(safe_return))]
+pub(crate) struct Admin{
+	// TODO: fix.
+	a: bool,
+}
 
 #[derive(Debug)]
 pub(crate) enum AdminError {
@@ -30,7 +33,7 @@ impl<'r> FromRequest<'r> for Admin {
         let cfg = request.guard::<&State<Config>>().await.unwrap();
 
         let res = if cfg.admins.contains(&apikey.user) {
-            Some(Admin)
+            Some(Admin{a: true})
         } else {
             None
         };
