@@ -15,11 +15,6 @@ use std::collections::hash_map::DefaultHasher;
 use std::hash::Hash;
 use std::sync::{Arc, Mutex};
 
-#[cfg(feature = "edit-dis-3-a")]
-extern crate rustc_serialize;
-#[cfg(feature = "edit-dis-3-a")]
-use rustc_serialize::json;
-
 #[cfg_attr(not(feature = "v-ann-lib"), dfpp::label(sensitive))]
 #[cfg_attr(not(feature = "v-ann-lib"), dfpp::output_types(LectureAnswer))]
 #[derive(Debug, FromForm)]
@@ -165,6 +160,7 @@ fn get_answers(bg: &mut MySqlBackend, key: Either<u64, &str>) -> Vec<LectureAnsw
         .collect()
 }
 
+#[cfg_attr(feature = "edit-dis-3-a", dfpp::analyze)]
 #[get("/<num>")]
 pub(crate) fn answers(
     _admin: Admin,
@@ -436,20 +432,14 @@ pub(crate) fn questions_submit_internal(
         bg.replace("answers", rec);
     }
 
-	cfg_if! {
-		if #[cfg(feature = "edit-dis-3-a")] {
-			let answer_log = json::encode(&data.answers).unwrap();
-		} else {
-			let answer_log = format!(
-				"{}",
-				data.answers
-					.iter()
-					.map(|(i, t)| format!("Question {}:\n{}", i, t))
-					.collect::<Vec<_>>()
-					.join("\n-----\n")
-			);
-		}
-	}
+	let answer_log = format!(
+		"{}",
+		data.answers
+			.iter()
+			.map(|(i, t)| format!("Question {}:\n{}", i, t))
+			.collect::<Vec<_>>()
+			.join("\n-----\n")
+	);
 
 	#[cfg(feature = "edit-dis-3-b")]
 	println!("{}", answer_log);

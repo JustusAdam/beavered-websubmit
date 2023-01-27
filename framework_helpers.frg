@@ -13,6 +13,14 @@ fun all_recipients[f: CallSite, ctrl: Ctrl] : set Src {
     ^(ctrl.flow + arg_call_site).(labeled_objects[arguments[f], scopes]) & Src
 }
 
+fun all_scopes[c: Ctrl] : set Object {
+	labeled_objects_with_types[c, Object, scopes] + {
+		r : Return | {
+			flows_to_ctrl[c, labeled_objects_with_types[c, Object, sensitive], r]
+		}
+	}
+}
+
 pred some_authorized[principal: Src, c: Ctrl] {
     some principal & c.types.(labeled_objects[Type, auth_witness])
 }
@@ -25,6 +33,12 @@ fun safe_sources[cs: Ctrl] : set Object {
 			some bless : labeled_objects_with_types[cs, Object, bless_safe_source] | {
 				flows_to_ctrl[cs, bless, elem]
 			}
+		}
+	}
+	// Or it is the return if logged in user is an admin
+	+ {
+		r: Return | {
+			some labels.safe_return & cs.types[InputArgument]
 		}
 	}
 }
