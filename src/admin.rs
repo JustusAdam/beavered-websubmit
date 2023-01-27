@@ -13,7 +13,7 @@ use rocket_dyn_templates::Template;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-#[cfg_attr(not(feature = "v-ann-lib"), dfpp::label(safe_return))]
+#[cfg_attr(not(feature = "v-ann-lib"), dfpp::label(safe_source))]
 pub(crate) struct Admin{
 	// TODO: fix.
 	a: bool,

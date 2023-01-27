@@ -3,10 +3,35 @@
         [
             {
                 "Label": {
+                    "label": "sink",
+                    "refinement": {
+                        "on_argument": [0],
+                        "on_return": false
+                    }
+                }
+            },
+			{
+                "Label": {
                     "label": "scopes",
                     "refinement": {
                         "on_argument": [0],
                         "on_return": false
+                    }
+                }
+            }
+        ],
+        {
+            "Function": 1
+        }
+    ],
+	"new" : [
+        [
+            {
+                "Label": {
+                    "label": "safe_source",
+                    "refinement": {
+                        "on_argument": [],
+                        "on_return": true
                     }
                 }
             }

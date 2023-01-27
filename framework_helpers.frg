@@ -35,10 +35,4 @@ fun safe_sources[cs: Ctrl] : set Object {
 			}
 		}
 	}
-	// Or it is the return if logged in user is an admin
-	+ {
-		r: Return | {
-			some labels.safe_return & cs.types[InputArgument]
-		}
-	}
 }

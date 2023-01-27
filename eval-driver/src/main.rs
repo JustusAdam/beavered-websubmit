@@ -9,7 +9,7 @@ use std::fmt::{Display, Write};
 use std::str::FromStr;
 
 const CONFIGURATIONS: &'static [(Property, usize)] =
-    &[(Property::Deletion, 3), (Property::Storage, 1)];
+    &[(Property::Deletion, 3), (Property::Storage, 1), (Property::Disclosure, 3)];
 
 const ALL_KNOWN_VARIANTS: &'static [&'static str] = &["lib", "baseline", "strict"];
 

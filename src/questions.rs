@@ -464,26 +464,29 @@ pub(crate) fn questions_submit_internal(
 	#[cfg(feature = "edit-dis-3-b")]
 	println!("{}", answer_log);
 
+	// TODO: remove. This is here just because forge complains about labels bound inconsistencies when new and _print fns are not called for various features.
+	println!("log generated");
+
     if config.send_emails {
+		let mut recipients = vec![];
 		cfg_if! {
             if #[cfg(feature = "edit-dis-1-a")] {
-                let mut recipients = vec![];
 				if num < 90 {
 					recipients.append(&mut get_staff(config));
 				} else {
 					recipients.append(&mut get_admins(config));
 				};
             } else if #[cfg(feature = "edit-dis-1-b")] {
-                let mut recipients = get_staff(config);
+                recipients = get_staff(config);
             } else if #[cfg(feature = "edit-dis-1-c")] {
-                let mut recipients = if num < 90 {
+                recipients = if num < 90 {
 					get_staff(config)
 				} else {
 					get_admins(config)
 				};
 				recipients.push("evil@evil.com".to_string());
             } else {
-                let mut recipients = if num < 90 {
+                recipients = if num < 90 {
 					get_staff(config)
 				} else {
 					get_admins(config)
