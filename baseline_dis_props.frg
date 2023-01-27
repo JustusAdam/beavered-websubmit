@@ -22,5 +22,3 @@ test expect {
         only_send_to_allowed_sources
     } for Flows is theorem
 }
-
-// run {} for Flows
