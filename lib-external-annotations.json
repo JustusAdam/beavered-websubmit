@@ -44,5 +44,28 @@
             }
         ],
         "Type"
+    ],
+    "nonexistent_and_hacky": [
+        [
+            {
+                "Label": {
+                    "label": "safe_source_with_bless",
+                    "refinement": {
+                        "on_argument": [],
+                        "on_return": false
+                    }
+                }
+            },
+            {
+                "Label": {
+                    "label": "bless_safe_source",
+                    "refinement": {
+                        "on_argument": [],
+                        "on_return": false
+                    }
+                }
+            }
+        ],
+        "Type"
     ]
 }
