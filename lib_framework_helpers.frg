@@ -1,8 +1,8 @@
 #lang forge
 open "analysis_result.frg"
 open "basic_helpers.frg"
-fun all_scopes[f: Sink + CallSite, c: Ctrl] : set Object {
-    let call_site = { f in CallSite => f else f.arg_call_site } |
+fun all_scopes[f: Sink, c: Ctrl] : set Object {
+    let call_site = f.arg_call_site |
 	let direct = labeled_objects[arguments[call_site], scopes] |
     {some direct => direct
     else {f = Return =>
@@ -21,5 +21,5 @@ fun safe_sources[c: Ctrl] : set Src {
 
 fun all_recipients[f: CallSite, ctrl: Ctrl] : set Src {
 
-    *(ctrl.flow + arg_call_site).(all_scopes[f])
+    *(ctrl.flow + arg_call_site).(all_scopes[arg_call_site.f, ctrl])
 }
