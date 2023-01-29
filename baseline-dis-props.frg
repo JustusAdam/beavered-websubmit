@@ -19,7 +19,6 @@ pred only_send_to_allowed_sources {
             })
 		}
 }
-
 test expect {
     // Happens-before properties
     only_send_to_allowed: {

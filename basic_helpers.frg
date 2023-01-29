@@ -2,13 +2,10 @@
 
 open "analysis_result.frg"
 
-fun to_source[c: one Ctrl, o: one Type + Src + CallArgument] : Src {
+fun to_source[c: one Ctrl, o: one Type + Src] : Src {
     {src : Src |
-    { o in Type => src->o in c.types
-    else {
-        o in CallArgument => o->src in arg_call_site
-        else o = src
-    }}}
+        o in Type and src->o in c.types or o = src
+    }
 }
 
 fun to_sink[c: one Ctrl, o: one Type + Src] : Sink {
