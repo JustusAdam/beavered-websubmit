@@ -7,8 +7,12 @@ fun all_scopes[f: Sink, c: Ctrl] : set Object {
     let call_site = f.arg_call_site |
 	let direct = labeled_objects[arguments[call_site], scopes] |
     {some direct => direct
-    else { scope : labeled_objects[Object, scopes] |
-        flows_to[c, scope, call_site]
+    else {f = Return =>
+        labeled_objects[fp_fun_rel.c, request_generated]
+        else
+        { scope : labeled_objects[Object, scopes] |
+            flows_to[c, scope, call_site]
+        }
     }
     }
 }
@@ -34,23 +38,25 @@ pred only_send_to_allowed_sources {
 }
 
 pred guarded_storage_release {
-	all c: Ctrl, a : labeled_objects[Src + Type, from_storage], f : labeled_objects[Sink, sink] | 
+	all c: Ctrl, a : labeled_objects[Src + Type, from_storage], f :
+	labeled_objects[Sink, sink] + Return | 
         (flows_to[c, a, f]) 
         implies {
 			(some all_scopes[f, c]) and 
 			{o: Src | some scope: all_scopes[f, c] |
 			flows_to[c, o, scope] 
                 and no arg_call_site.o & c.flow[Src] // roots of the flow
-            } = 
-            { o: Src | some src: arguments[to_source[c, a]] |
-			    flows_to[c, o, src] 
-            }
+            } in labels.request_generated 
 		}
 }
 
-expect {
+test expect {
     // Happens-before properties
     only_send_to_allowed: {
         only_send_to_allowed_sources
+    } for Flows is theorem
+
+    guarded_release: {
+        guarded_storage_release
     } for Flows is theorem
 }
