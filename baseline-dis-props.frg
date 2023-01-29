@@ -5,7 +5,7 @@ open "basic_helpers.frg"
 open "framework_helpers.frg"
 
 pred only_send_to_allowed_sources {
-	all c: Ctrl, a : labeled_objects[InputArgument + Type, sensitive], f : labeled_objects[Sink, sink] | 
+	all c: Ctrl, a : labeled_objects[FormalParameter + Type, sensitive], f : labeled_objects[Sink, sink] | 
         (flows_to[c, a, f]) 
         implies {
 			(some all_scopes[f, c]) and 

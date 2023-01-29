@@ -15,7 +15,7 @@ fun all_recipients[f: CallSite, ctrl: Ctrl] : set Src {
 
 fun all_scopes[f: Sink, c: Ctrl] : set Object {
 	labeled_objects[arguments[f.arg_call_site], scopes] + {
-		arg : c.types.(`ApiKey + `Admin) & InputArgument | {
+		arg : c.types.(`ApiKey + `Admin) & FormalParameter | {
 			some (f & Return)
 		}
 	}

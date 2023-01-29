@@ -162,6 +162,7 @@ fn get_answers(bg: &mut MySqlBackend, key: Either<u64, &str>) -> Vec<LectureAnsw
 
 #[cfg_attr(feature = "edit-dis-3-a", dfpp::analyze)]
 #[cfg_attr(feature = "edit-dis-3-c", dfpp::analyze)]
+#[cfg_attr(feature = "v-ann-lib", dfpp::label(request_generated, arguments = [0]))]
 #[get("/<num>")]
 pub(crate) fn answers(
     _admin: Admin,
@@ -385,6 +386,7 @@ pub(crate) fn questions_submit(
     questions_submit_internal(apikey, num, data, backend, config)
 }
 #[dfpp::analyze]
+#[cfg_attr(feature = "v-ann-lib", dfpp::label(request_generated, arguments = [0]))]
 pub(crate) fn questions_submit_internal(
     apikey: ApiKey,
     num: u8,

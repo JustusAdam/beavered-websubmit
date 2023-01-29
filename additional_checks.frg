@@ -3,14 +3,14 @@ open "props.frg"
 // Every time the system sends a value, the receiver is derived from an 
 // `auth_witness` labeled value (e.g. the user)
 pred outputs_to_authorized {
-    all c: Ctrl, a : labeled_objects[InputArgument + Type, sensitive], f : CallSite | 
+    all c: Ctrl, a : labeled_objects[FormalParameter + Type, sensitive], f : CallSite | 
         (some r : labeled_objects[arguments[f], sink] | flows_to[c, a, r]) 
         implies authorized[recipients[f, c], c]
 }
 
 // currently unused
 pred outputs_to_authorized_with_exception {
-    all c: Ctrl, a : labeled_objects[InputArgument + Type, sensitive], f : CallSite | 
+    all c: Ctrl, a : labeled_objects[FormalParameter + Type, sensitive], f : CallSite | 
         (some r : labeled_objects[arguments[f], sink] | flows_to[c, a, r]) 
         implies authorized[recipients[f, c], c] or exception in f.labels
 }
@@ -47,14 +47,14 @@ inst UnauthorizedPathsTestInst {
     Ctrl = `ctrl
     CallArgument = `ca_1
     Type = none
-    InputArgument = `arg_0
+    FormalParameter = `arg_0
     otype = none->none
     flow = `ctrl->`arg_0->`ca_1
     types = none->none->none
     Function = `f1
     CallSite = `cs_f1_0
     arg_call_site = `ca_1->`cs_f1_0
-    Src = CallSite + InputArgument
+    Src = CallSite + FormalParameter
     function = `cs_f1_0->`f1
     Object = CallArgument+Src+Function
 }
@@ -90,14 +90,14 @@ inst NotOutputsToAuthorizedAll {
     Ctrl = `ctrl
     CallArgument = `ca_1+`ca_2
     Type = none
-    InputArgument = `arg_0 + `arg_1
+    FormalParameter = `arg_0 + `arg_1
     otype = none->none
     flow = `ctrl->`arg_0->`ca_1+`ctrl->`arg_1->`ca_2
     types = none->none->none
     Function = `f1
     CallSite = `cs_f1_0
     arg_call_site = (`ca_1+`ca_2)->`cs_f1_0
-    Src = CallSite + InputArgument
+    Src = CallSite + FormalParameter
     function = `cs_f1_0->`f1
     Object = CallArgument+Src+Function
     labels = `arg_1->sensitive+`ca_1->scopes+`ca_2->sink
@@ -119,7 +119,7 @@ pred authorized_paths[c: Ctrl, target: set CallArgument, authorized_labels: set 
 // A version of `outputs_to_authorized` that reasons about all reaching 
 // paths and also knows about presenters
 pred outputs_to_authorized_all {
-    all c: Ctrl, a : labeled_objects[InputArgument + Type, sensitive], f : CallSite |
+    all c: Ctrl, a : labeled_objects[FormalParameter + Type, sensitive], f : CallSite |
         (some r : labeled_objects[arguments[f], sink] | flows_to[c, a, r]) 
         implies authorized_paths[c, labeled_objects[arguments[f], scopes], sensitive + auth_witness + cfg_source + presenter]
 }
@@ -128,7 +128,7 @@ pred outputs_to_authorized_all {
 // A version of `outputs_to_authorized` that reasons about all reaching 
 // paths
 pred outputs_to_authorized_all0 {
-    all c: Ctrl, a : labeled_objects[InputArgument + Type, sensitive], f : CallSite | 
+    all c: Ctrl, a : labeled_objects[FormalParameter + Type, sensitive], f : CallSite | 
         (some r : labeled_objects[arguments[f], sink] | flows_to[c, a, r]) 
         implies authorized_paths[c, labeled_objects[arguments[f], scopes], sensitive + auth_witness + cfg_source]
 }

@@ -8,7 +8,7 @@ open "framework_helpers.frg"
 // and thus likely make it possible to associate the stored value with 
 // the user.
 pred stores_to_authorized {
-    all c: Ctrl, a : labeled_objects[InputArgument + Type, sensitive], f : CallSite | 
+    all c: Ctrl, a : labeled_objects[FormalParameter + Type, sensitive], f : CallSite | 
         (some r : labeled_objects[arguments[f], stores] | flows_to[c, a, r]) 
         implies some_authorized[all_recipients[f, c], c]
 }

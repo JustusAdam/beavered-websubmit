@@ -16,7 +16,7 @@ one sig Return extends Sink {}
 sig CallArgument extends Sink {
     arg_call_site: one CallSite
 }
-sig InputArgument extends Src {}
+sig FormalParameter extends Src {}
 sig Type extends Object {
     otype: set Type
 }
@@ -61,8 +61,8 @@ inst Flows {
     stores = `stores
 	safe_return = `safe_return
     CallSite = `cs_into_iter_b7_i2+`cs_clone_b27_i1+`cs_deref_mut_b38_i3+`cs_deref_mut_b9_i4+`cs_into_b26_i2+`cs_deref_b1_i1+`cs_get_presenters_b10_i2+`cs_clone_b66_i1+`cs_unwrap_b4_i0+`cs_render_b8_i2+`cs_delete_apikey_b23_i1+`cs_send_b73_i1+`cs_get_admins_b61_i1+`cs_deref_b1_i1+`cs_into_vec_b37_i0+`cs_into_b5_i3+`cs_clone_b65_i1+`cs_deref_b64_i1+`cs_new_v1_b70_i4+`cs_deref_b2_i1+`cs_get_num_b0_i1+`cs_into_b21_i3+`cs_format_b52_i0+`cs_into_iter_b12_i1+`cs_to_string_b18_i3+`cs_deref_b48_i1+`cs_get_answers_b5_i4+`cs_deref_b56_i2+`cs_naive_local_b7_i1+`cs_deref_b0_i1+`cs_new_v1_b51_i4+`cs_deref_mut_b13_i4+`cs_into_b23_i0+`cs_delete_answer_b16_i1+`cs_deref_b11_i2+`cs_replace_b39_i4+`cs_as_str_b4_i2+`cs_scopes_argument_b25_i2+`cs_deref_b20_i6+`cs_lock_b3_i1+`cs_deref_mut_b5_i3+`cs_lock_b2_i1+`cs_clone_b22_i2+`cs_new_display_b50_i2+`cs_drop_b6_i2+`cs_deref_b0_i1+`cs_collect_b47_i0+`cs_join_b49_i3+`cs_iter_b45_i1+`cs_next_b10_i2+`cs_map_b46_i1+`cs_deref_b1_i2+`cs_get_answers_b6_i3+`cs_unwrap_b3_i0+`cs_next_b15_i2+`cs_deref_mut_b4_i3+`cs_deref_b67_i6+`cs_into_b28_i0+`cs_deref_mut_b22_i3+`cs_format_b71_i0+`cs_new_display_b69_i2+`cs_to_b24_i0+`cs_into_b8_i0+`cs_unwrap_b3_i0+`cs_lock_b2_i1+`cs_get_staff_b59_i1+`cs_now_b6_i2+`cs_to_b78_i0+`cs_clone_b29_i1+`cs_append_b63_i4+`cs_expect_b74_i2+`cs_new_display_b68_i2
-    InputArgument = `arg_1+`arg_4+`arg_3+`arg_2+`arg_0
-    Src = InputArgument+CallSite
+    FormalParameter = `arg_1+`arg_4+`arg_3+`arg_2+`arg_0
+    Src = FormalParameter+CallSite
     Return = `Return
     CallArgument = `arg0_get_answers_b6_i3+`arg1_render_b8_i2+`arg0_lock_b2_i1+`arg0_send_b73_i1+`arg0_deref_mut_b4_i3+`arg0_deref_b48_i1+`arg0_unwrap_b3_i0+`arg0_deref_mut_b22_i3+`arg1_delete_apikey_b23_i1+`arg0_into_b21_i3+`arg0_deref_b67_i6+`arg0_deref_mut_b38_i3+`arg0_get_admins_b61_i1+`arg1_new_v1_b70_i4+`arg0_clone_b22_i2+`arg0_deref_b1_i1+`arg0_new_display_b50_i2+`arg0_deref_mut_b5_i3+`arg0_naive_local_b7_i1+`arg0_unwrap_b4_i0+`arg0_clone_b29_i1+`arg0_format_b71_i0+`arg0_get_answers_b5_i4+`arg0_into_b28_i0+`arg0_get_staff_b59_i1+`arg0_scopes_argument_b25_i2+`arg0_lock_b2_i1+`arg0_clone_b27_i1+`arg0_new_display_b69_i2+`arg0_new_display_b68_i2+`arg0_iter_b45_i1+`arg0_into_iter_b12_i1+`arg3_send_b73_i1+`arg0_get_presenters_b10_i2+`arg0_into_b8_i0+`arg0_map_b46_i1+`arg0_into_b23_i0+`arg0_deref_b2_i1+`arg0_replace_b39_i4+`arg2_send_b73_i1+`arg2_replace_b39_i4+`arg0_deref_mut_b9_i4+`arg0_expect_b74_i2+`arg0_append_b63_i4+`arg0_clone_b65_i1+`arg0_into_vec_b37_i0+`arg0_into_b26_i2+`arg0_next_b15_i2+`arg0_delete_answer_b16_i1+`arg0_deref_b0_i1+`arg1_append_b63_i4+`arg1_get_presenters_b10_i2+`arg0_join_b49_i3+`arg0_deref_b0_i1+`arg4_send_b73_i1+`arg0_format_b52_i0+`arg0_clone_b66_i1+`arg0_deref_b1_i2+`arg1_get_answers_b5_i4+`arg0_deref_b11_i2+`arg0_next_b10_i2+`arg0_into_b5_i3+`arg1_get_answers_b6_i3+`arg0_unwrap_b3_i0+`arg0_deref_b20_i6+`arg0_deref_b64_i1+`arg1_send_b73_i1+`arg0_into_iter_b7_i2+`arg1_new_v1_b51_i4+`arg0_as_str_b4_i2+`arg0_deref_mut_b13_i4+`arg0_lock_b3_i1+`arg0_delete_apikey_b23_i1+`arg0_get_num_b0_i1+`arg0_collect_b47_i0+`arg0_drop_b6_i2+`arg0_to_string_b18_i3+`arg1_delete_answer_b16_i1+`arg0_deref_b56_i2+`arg0_deref_b1_i1
     Sink = Return+CallArgument
