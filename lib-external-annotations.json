@@ -30,12 +30,74 @@
         {
             "Function": 2
         }
+    ],    
+    "questions_submit_internal": [
+        [
+            {
+                "Label": {
+                    "label": "request_generated",
+                    "refinement": {
+                        "on_argument": [0],
+                        "on_return": false
+                    }
+                }
+            }
+        ],
+        {
+            "Function": 2
+        }
+    ],
+    "forget_user": [
+        [
+            {
+                "Label": {
+                    "label": "request_generated",
+                    "refinement": {
+                        "on_argument": [0],
+                        "on_return": false
+                    }
+                }
+            }
+        ],
+        {
+            "Function": 2
+        }
+    ], 
+    "answers": [
+        [
+            {
+                "Label": {
+                    "label": "request_generated",
+                    "refinement": {
+                        "on_argument": [0],
+                        "on_return": false
+                    }
+                }
+            }
+        ],
+        {
+            "Function": 2
+        }
     ],
     "Form": [
         [
             {
                 "Label": {
                     "label": "sensitive",
+                    "refinement": {
+                        "on_argument": [],
+                        "on_return": false
+                    }
+                }
+            }
+        ],
+        "Type"
+    ], 
+    "State": [
+        [
+            {
+                "Label": {
+                    "label": "server_state",
                     "refinement": {
                         "on_argument": [],
                         "on_return": false
