@@ -2,7 +2,7 @@
 
 open "analysis_result.frg"
 open "basic_helpers.frg"
-open "framework_helpers.frg"
+open "lib_framework_helper.frg"
 // Asserts that there exists one controller which calls a deletion
 // function on every value (or an equivalent type) that is ever stored.
 pred one_deleter {
