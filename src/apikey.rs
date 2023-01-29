@@ -89,7 +89,7 @@ pub(crate) fn generate(
     );
 
     if config.send_emails {
-        email::send(
+        email::my_send(
             bg.log.clone(),
             "no-reply@csci2390-submit.cs.brown.edu".into(),
             vec![data.email.clone()],

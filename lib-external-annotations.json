@@ -15,13 +15,13 @@
             "Function": 2
         }
     ],
-    "text": [
+    "send": [
         [
             {
                 "Label": {
                     "label": "sink",
                     "refinement": {
-                        "on_argument": [1],
+                        "on_argument": [0],
                         "on_return": false
                     }
                 }

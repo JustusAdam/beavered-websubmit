@@ -4,7 +4,7 @@ use lettre_email::Email;
 
 #[cfg_attr(not(feature = "v-ann-lib"), dfpp::label{ sink, arguments = [3, 4] })]
 #[cfg_attr(not(feature = "v-ann-lib"), dfpp::label{ scopes, arguments = [2] })]
-pub(crate) fn send(
+pub(crate) fn my_send(
     log: slog::Logger,
     sender: String,
     recipients: Vec<String>,

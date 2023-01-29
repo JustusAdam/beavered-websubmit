@@ -4,7 +4,13 @@ open "analysis_result.frg"
 open "basic_helpers.frg"
 
 fun all_scopes[f: Sink, c: Ctrl] : set Object {
-	labeled_objects[arguments[f.arg_call_site], scopes]
+    let call_site = f.arg_call_site |
+	let direct = labeled_objects[arguments[call_site], scopes] |
+    {some direct => direct
+    else { scope : labeled_objects[Object, scopes] |
+        flows_to[c, scope, call_site]
+    }
+    }
 }
 
 fun safe_sources[c: Ctrl] : set Src {
@@ -19,14 +25,13 @@ pred only_send_to_allowed_sources {
 			(all o: Object, scope: all_scopes[f, c] | 
 			flows_to[c, o, scope]
             implies {
-                (some o & safe_sources[c]) // either it is safe itself
-                or always_happens_before[c, o, safe_sources[c], scope] // obj must go through something in safe before scope
+                (some o & safe_sources[c])
+                or always_happens_before[c, o, safe_sources[c], scope]
                 or (some safe : safe_sources[c] |
-                    flows_to[c, safe, o]) // safe must have flowed to obj at some point
+                    flows_to[c, safe, o])
             })
 		}
 }
-
 
 pred guarded_storage_release {
 	all c: Ctrl, a : labeled_objects[Src + Type, from_storage], f : labeled_objects[Sink, sink] | 
@@ -43,7 +48,7 @@ pred guarded_storage_release {
 		}
 }
 
-test expect {
+expect {
     // Happens-before properties
     only_send_to_allowed: {
         only_send_to_allowed_sources
