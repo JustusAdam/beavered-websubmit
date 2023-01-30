@@ -2,44 +2,44 @@
 open "props.frg"
 // Every time the system sends a value, the receiver is derived from an 
 // `auth_witness` labeled value (e.g. the user)
-pred outputs_to_authorized {
-    all c: Ctrl, a : labeled_objects[InputArgument + Type, sensitive], f : CallSite | 
-        (some r : labeled_objects[arguments[f], sink] | flows_to[c, a, r]) 
-        implies authorized[recipients[f, c], c]
+pred outputs_to_authorized[flow_set: set Ctrl->Src->CallArgument, labels_set: set Object->Label] {
+    all c: Ctrl, a : labeled_objects[InputArgument + Type, sensitive, labels_set], f : CallSite | 
+        (some r : labeled_objects[arguments[f], sink, labels_set] | flows_to[c, a, r, flow_set]) 
+        implies authorized[recipients[f, c, flow_set, labels_set], c, labels_set]
 }
 
-// currently unused
-pred outputs_to_authorized_with_exception {
-    all c: Ctrl, a : labeled_objects[InputArgument + Type, sensitive], f : CallSite | 
-        (some r : labeled_objects[arguments[f], sink] | flows_to[c, a, r]) 
-        implies authorized[recipients[f, c], c] or exception in f.labels
-}
+// // currently unused
+// pred outputs_to_authorized_with_exception {
+//     all c: Ctrl, a : labeled_objects[InputArgument + Type, sensitive], f : CallSite | 
+//         (some r : labeled_objects[arguments[f], sink] | flows_to[c, a, r]) 
+//         implies authorized[recipients[f, c], c] or exception in f.labels
+// }
 
 
 // Values that are persent in the controller `c` which have the `labels`
 // attached. It returns both values diectly labeled, as well as the 
 // values whos types are labeled
-fun c_values[c: Ctrl, labels: set Label] : set Object {
-    c.types.(labeled_objects[Type, labels]) + labeled_objects[c.flow.CallArgument, labels]
+fun c_values[c: Ctrl, labels: set Label, flows_set: set Ctrl->Src->CallArgument, labels_set: set Object->Label] : set Object {
+    c.types.(labeled_objects[Type, labels, labels_set]) + labeled_objects[c.flow_set.CallArgument, labels, label_set]
 }
 
 // Calculate any flows in `c` that reach `target` but do not pass through 
 // or originate from a source that is labeled with one of `authorized_labels`
-fun unauthorized_paths[c: Ctrl, target: set CallArgument, authorized_labels: set Label] : set Src->CallArgument {
-    let transitive_flow = ^(c.flow + arg_call_site) |
-    let good_values = c_values[c, authorized_labels] |
+fun unauthorized_paths[c: Ctrl, target: set CallArgument, authorized_labels: set Label, flow_set: set Ctrl->Src->CallArgument, labels_set: set Object->Label] : set Src->CallArgument {
+    let transitive_flow = ^(c.flow_set + arg_call_site) |
+    let good_values = c_values[c, authorized_labels, flows_set, labels_set] |
     let terminal_values = (Src & transitive_flow.CallArgument) - transitive_flow[Src] |
     let all_bad_terminal_source_values = terminal_values - good_values |
-    let trans_flow_without_good_values = ^(c.flow - (good_values->CallArgument) + arg_call_site) |
+    let trans_flow_without_good_values = ^(c.flow_set - (good_values->CallArgument) + arg_call_site) |
     trans_flow_without_good_values & all_bad_terminal_source_values->target             
 }
 
 // Just a debugging utility. Projects the `flow` relation for `c` 
 // to everything reachable from `start`
-fun flow_from[c: Ctrl, start: Object] : set Object -> Object {
-    let t = ^(c.flow + arg_call_site) |
+fun flow_from[c: Ctrl, start: Object, flow_set: set Ctrl->Src->CallArgument] : set Object -> Object {
+    let t = ^(c.flow_set + arg_call_site) |
     let reach = t[start] |
-    c.flow & reach->reach
+    c.flow_set & reach->reach
 }
 
 // Test instances for the unauthorized_paths function
@@ -62,11 +62,11 @@ inst UnauthorizedPathsTestInst {
 test expect {
     vacuityUnauthorizedPathsTestInstInst: {} for UnauthorizedPathsTestInst is sat
     unauthorized_paths_inUnauthorizedPathsTestInst: {
-        some unauthorized_paths[`ctrl, `ca_1, none]
+        some unauthorized_paths[`ctrl, `ca_1, none, flow, labels]
     } for UnauthorizedPathsTestInst is sat 
     oxymoron_check_unauthorized_paths: {
         some c: Ctrl, labels: set Label, target: set CallArgument |
-        some unauthorized_paths[c, target, labels]
+        some unauthorized_paths[c, target, labels, flow, labels]
     } is sat
 }
 
@@ -110,16 +110,16 @@ test expect {
 
 // Assert that all paths reach `target` in `c` are authorzed with one of 
 // the supplied labels
-pred authorized_paths[c: Ctrl, target: set CallArgument, authorized_labels: set Label] {
-    no unauthorized_paths[c, target, authorized_labels]
+pred authorized_paths[c: Ctrl, target: set CallArgument, authorized_labels: set Label,  flow_set: set Ctrl->Src->CallArgument, labels_set: set Object->Label] {
+    no unauthorized_paths[c, target, authorized_labels, flow_set, labels_set]
 }
 
 // A version of `outputs_to_authorized` that reasons about all reaching 
 // paths and also knows about presenters
-pred outputs_to_authorized_all {
-    all c: Ctrl, a : labeled_objects[InputArgument + Type, sensitive], f : CallSite |
-        (some r : labeled_objects[arguments[f], sink] | flows_to[c, a, r]) 
-        implies authorized_paths[c, labeled_objects[arguments[f], scopes], sensitive + auth_witness + cfg_source + presenter]
+pred outputs_to_authorized_all[flow_set: set Ctrl->Src->CallArgument, labels_set: set Object->Label] {
+    all c: Ctrl, a : labeled_objects[InputArgument + Type, sensitive, labels_set], f : CallSite |
+        (some r : labeled_objects[arguments[f], sink, labels_set] | flows_to[c, a, r, flow_set]) 
+        implies authorized_paths[c, labeled_objects[arguments[f], scopes, labels_set], sensitive + auth_witness + cfg_source + presenter, flow_set, labels_set]
 }
 
 

@@ -222,9 +222,9 @@ impl ApiKey {
 pub(crate) fn forget_user(apikey: ApiKey, backend: &State<Arc<Mutex<MySqlBackend>>>) -> Redirect {
     let mut bg = backend.lock().unwrap();
     let answers = get_answers(&mut bg, Either::Right(&apikey.user));
-    for answer in answers {
-        answer.delete_answer(&mut bg);
-    }
+    // for answer in answers {
+    //     answer.delete_answer(&mut bg);
+    // }
     apikey.delete_apikey(&mut bg);
     Redirect::to("/")
 }
