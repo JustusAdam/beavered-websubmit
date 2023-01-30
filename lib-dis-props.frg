@@ -34,8 +34,6 @@ pred guarded_storage_release {
 		}
 }
 
-run {} for Flows
-
 test expect {
     // Happens-before properties
     only_send_to_allowed: {

@@ -5,7 +5,7 @@ open "basic_helpers.frg"
 open "lib_framework_helpers.frg"
 
 pred some_authorized[principal: Src, c: Ctrl] {
-    some principal & labeled_objects[fp_fun_rel.c, request_generated]
+    some principal & labeled_objects_inc_fp[c, request_generated]
 }
 
 
@@ -17,7 +17,6 @@ pred stores_to_authorized {
         (some r : labeled_objects[arguments[f], stores] | flows_to[c, a, r]) 
         implies some_authorized[all_recipients[f, c], c]
 }
-
 
 test expect {
     // Storage properties
