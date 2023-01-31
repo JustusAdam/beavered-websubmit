@@ -21,7 +21,7 @@
                 "Label": {
                     "label": "sink",
                     "refinement": {
-                        "on_argument": [0],
+                        "on_argument": [1],
                         "on_return": false
                     }
                 }
@@ -106,6 +106,22 @@
             }
         ],
         "Type"
+    ],
+	"new" : [
+        [
+            {
+                "Label": {
+                    "label": "safe_source",
+                    "refinement": {
+                        "on_argument": [],
+                        "on_return": true
+                    }
+                }
+            }
+        ],
+        {
+            "Function": 1
+        }
     ],
     "nonexistent_and_hacky": [
         [

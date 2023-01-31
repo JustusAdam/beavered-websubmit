@@ -14,15 +14,15 @@ fun all_scopes[f: Sink, c: Ctrl] : set Object {
     else {f = Return =>
         (fp_ann.request_generated).c
         else
-        { scope : labeled_objects[Object, scopes] |
-            flows_to[c, scope, call_site]
-        }
+        { scope : labeled_objects[CallArgument, scopes] |
+            flows_to[c, scope.arg_call_site, f]
+        } 
     }
     }
 }
 
 fun safe_sources[c: Ctrl] : set Src {
-    labeled_objects_inc_fp[c,request_generated] + c.types.(labeled_objects[Type, server_state]) + labels.from_storage
+    labeled_objects_inc_fp[c,request_generated] + c.types.(labeled_objects[Type, server_state]) + labels.(from_storage + safe_source)
 }
 
 fun all_recipients[f: CallSite, ctrl: Ctrl] : set Src {
