@@ -4,6 +4,11 @@ open "analysis_result.frg"
 open "basic_helpers.frg"
 open "lib_framework_helpers.frg"
 
+pred some_authorized[principal: Src, c: Ctrl] {
+    some principal & labeled_objects[fp_fun_rel.c, request_generated]
+}
+
+
 // Calls to store a value also are influenced by the authenticated user 
 // and thus likely make it possible to associate the stored value with 
 // the user.

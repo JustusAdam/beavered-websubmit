@@ -8,8 +8,11 @@ use std::collections::HashSet;
 use std::fmt::{Display, Write};
 use std::str::FromStr;
 
-const CONFIGURATIONS: &'static [(Property, usize)] =
-    &[(Property::Deletion, 3), (Property::Storage, 1), (Property::Disclosure, 3)];
+const CONFIGURATIONS: &'static [(Property, usize)] = &[
+    (Property::Deletion, 3),
+    (Property::Storage, 1),
+    (Property::Disclosure, 3),
+];
 
 const ALL_KNOWN_VARIANTS: &'static [&'static str] = &["lib", "baseline", "strict"];
 
@@ -228,15 +231,11 @@ fn run_edit(
         .map(|version| {
             let mut dfpp_cmd = Command::new("cargo");
             dfpp_cmd.current_dir(cd).arg("dfpp").stdin(Stdio::null());
-            let external_ann_file_name =
-                format!("{version}-external-annotations.json");
-            let mut external_ann_file : std::path::PathBuf = cd.into();
+            let external_ann_file_name = format!("{version}-external-annotations.json");
+            let mut external_ann_file: std::path::PathBuf = cd.into();
             external_ann_file.push(&external_ann_file_name);
             if external_ann_file.exists() {
-                dfpp_cmd.args(&[
-                    "--external-annotations",
-                    external_ann_file_name.as_str(),
-                ]);
+                dfpp_cmd.args(&["--external-annotations", external_ann_file_name.as_str()]);
             }
             dfpp_cmd.args(&["--", "--features", &format!("v-ann-{version}")]);
             if let Some(edit) = edit {
@@ -278,6 +277,67 @@ fn run_edit(
         .collect()
 }
 
+fn print_results_for_property<W: std::io::Write>(
+    mut w: W,
+    num_versions: usize,
+    typ: Property,
+    args: &Args,
+    results: &[(Option<&Edit>, Vec<RunResult>)],
+) -> std::io::Result<()> {
+    let head_cell_width = 12;
+    let body_cell_width = 8;
+    let mut false_negatives = Vec::with_capacity(num_versions);
+    false_negatives.resize(num_versions, 0);
+    let mut false_positives = Vec::with_capacity(num_versions);
+    false_positives.resize(num_versions, 0);
+
+    write!(w, " {:head_cell_width$} ", typ.to_string(),)?;
+    write!(w, "| {:body_cell_width$} ", "expected")?;
+    for version in args.property_versions.iter() {
+        write!(w, "| {:body_cell_width$} ", version)?
+    }
+    writeln!(w, "")?;
+    write!(w, "-{:-<head_cell_width$}-", "")?;
+    for _ in 0..args.property_versions.len() + 1 {
+        write!(w, "+-{:-<body_cell_width$}-", "")?
+    }
+    writeln!(w, "")?;
+    for (edit, versions) in results {
+        let (edit, expected) = edit.map_or(("none".to_string(), RunResult::Success), |e| {
+            (e.to_string(), e.severity.expected_result())
+        });
+        write!(w, " {:head_cell_width$} ", edit)?;
+        write!(w, "| {:^body_cell_width$} ", expected)?;
+        for (i, result) in versions.into_iter().enumerate() {
+            match (&expected, &result) {
+                (RunResult::Success, RunResult::CheckError) => false_positives[i] += 1,
+                (RunResult::CheckError, RunResult::Success) => false_negatives[i] += 1,
+                _ => (),
+            };
+            write!(w, "| {:^body_cell_width$} ", result)?;
+        }
+        writeln!(w, "")?;
+    }
+    write!(w, "-{:-<head_cell_width$}-", "")?;
+    for _ in 0..args.property_versions.len() + 1 {
+        write!(w, "+-{:-<body_cell_width$}-", "")?
+    }
+    writeln!(w, "")?;
+
+    write!(w, " {:head_cell_width$} ", "false neg")?;
+    write!(w, "| {:^body_cell_width$} ", "-")?;
+    for p in false_negatives {
+        write!(w, "| {:^body_cell_width$} ", p)?;
+    }
+    writeln!(w, "")?;
+    write!(w, " {:head_cell_width$} ", "false pos")?;
+    write!(w, "| {:^body_cell_width$} ", "-")?;
+    for p in false_positives {
+        write!(w, "| {:^body_cell_width$} ", p)?;
+    }
+    writeln!(w, "")
+}
+
 fn main() {
     use std::io::Write;
     let args = {
@@ -293,8 +353,6 @@ fn main() {
         args
     };
 
-    let head_cell_width = 12;
-    let body_cell_width = 8;
     let ref is_selected = {
         let as_ref_v = args
             .only
@@ -345,90 +403,31 @@ fn main() {
             .unwrap(),
     );
 
-    let results = configurations
-        .iter()
-        .map(|(typ, edits)| {
-            (
-                *typ,
-                edits
-                    .iter()
-                    .map(Some)
-                    .chain([None])
-                    .map(|e| {
-                        (
-                            e,
-                            run_edit(
-                                *typ,
-                                args.property_versions.as_slice(),
-                                e,
-                                &args.directory,
-                                args.verbose,
-                                args.verbose_commands(),
-                                &progress,
-                            ),
-                        )
-                    })
-                    .collect::<Vec<_>>(),
-            )
+    let mut w = std::io::stdout();
+    for (typ, edits) in configurations {
+        let results = edits
+            .iter()
+            .map(Some)
+            .chain([None])
+            .map(|e| {
+                (
+                    e,
+                    run_edit(
+                        typ,
+                        args.property_versions.as_slice(),
+                        e,
+                        &args.directory,
+                        args.verbose,
+                        args.verbose_commands(),
+                        &progress,
+                    ),
+                )
+            })
+            .collect::<Vec<_>>();
+        progress.suspend(|| {
+            print_results_for_property(&mut w, num_versions, typ, &args, results.as_slice())
+                .unwrap()
         })
-        .collect::<Vec<_>>();
+    }
     progress.finish_and_clear();
-
-    let ref mut w = std::io::stdout();
-    (|| -> std::io::Result<()> {
-        for (typ, results) in results {
-            let mut false_negatives = Vec::with_capacity(num_versions);
-            false_negatives.resize(num_versions, 0);
-            let mut false_positives = Vec::with_capacity(num_versions);
-            false_positives.resize(num_versions, 0);
-
-            write!(w, " {:head_cell_width$} ", typ.to_string(),)?;
-            write!(w, "| {:body_cell_width$} ", "expected")?;
-            for version in args.property_versions.iter() {
-                write!(w, "| {:body_cell_width$} ", version)?
-            }
-            writeln!(w, "")?;
-            write!(w, "-{:-<head_cell_width$}-", "")?;
-            for _ in 0..args.property_versions.len() + 1 {
-                write!(w, "+-{:-<body_cell_width$}-", "")?
-            }
-            writeln!(w, "")?;
-            for (edit, versions) in results {
-                let (edit, expected) = edit.map_or(("none".to_string(), RunResult::Success), |e| {
-                    (e.to_string(), e.severity.expected_result())
-                });
-                write!(w, " {:head_cell_width$} ", edit)?;
-                write!(w, "| {:^body_cell_width$} ", expected)?;
-                for (i, result) in versions.into_iter().enumerate() {
-                    match (&expected, &result) {
-                        (RunResult::Success, RunResult::CheckError) => false_positives[i] += 1,
-                        (RunResult::CheckError, RunResult::Success) => false_negatives[i] += 1,
-                        _ => (),
-                    };
-                    write!(w, "| {:^body_cell_width$} ", result)?;
-                }
-                writeln!(w, "")?;
-            }
-            write!(w, "-{:-<head_cell_width$}-", "")?;
-            for _ in 0..args.property_versions.len() + 1 {
-                write!(w, "+-{:-<body_cell_width$}-", "")?
-            }
-            writeln!(w, "")?;
-
-            write!(w, " {:head_cell_width$} ", "false neg")?;
-            write!(w, "| {:^body_cell_width$} ", "-")?;
-            for p in false_negatives {
-                write!(w, "| {:^body_cell_width$} ", p)?;
-            }
-            writeln!(w, "")?;
-            write!(w, " {:head_cell_width$} ", "false pos")?;
-            write!(w, "| {:^body_cell_width$} ", "-")?;
-            for p in false_positives {
-                write!(w, "| {:^body_cell_width$} ", p)?;
-            }
-            writeln!(w, "")?;
-        }
-        Ok(())
-    })()
-    .unwrap()
 }

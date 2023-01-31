@@ -30,9 +30,11 @@ pred guarded_storage_release {
 			{o: Src | some scope: all_scopes[f, c] |
 			flows_to[c, o, scope] 
                 and no arg_call_site.o & c.flow[Src] // roots of the flow
-            } in labels.request_generated 
+            } in labeled_objects_inc_fp[c, request_generated]
 		}
 }
+
+run {} for Flows
 
 test expect {
     // Happens-before properties
