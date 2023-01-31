@@ -2,6 +2,15 @@
 
 open "analysis_result.frg"
 
+sig ErroneousFlow {
+    minimal_subflow: set CallSite->CallArgument
+}
+
+sig IncompleteLabel {
+    missing_labels: set CallArgument->Label
+}
+
+
 fun to_source[c: one Ctrl, o: one Type + Src + CallArgument] : Src {
     {src : Src |
     { o in Type => src->o in c.types
@@ -23,39 +32,39 @@ pred unconditional[c: one Ctrl, cs: one CallSite] {
     no c.ctrl_flow.cs
 }
 
-pred flows_to[cs: Ctrl, o: one Type + Src, f : (CallArgument + CallSite)] {
+pred flows_to[cs: Ctrl, o: one Type + Src, f : (CallArgument + CallSite), flow_set: set Ctrl->Src->CallArgument] {
     some c: cs |
     let a = to_source[c, o] | {
-        some c.flow[a] // a exists in cs
-        and (a -> f in ^(c.flow + arg_call_site))
+        some c.flow_set[a] // a exists in cs
+        and (a -> f in ^(c.flow_set + arg_call_site))
     }
 }
 
-pred flows_to_ctrl[cs: Ctrl, o: Object, f : CallArgument] {
+pred flows_to_ctrl[cs: Ctrl, o: Object, f : CallArgument, flow_set: set Ctrl->Src->CallArgument] {
     some c: cs |
     some a : Src | {
         o = a or o in Type and a->o in c.types
-        a -> f in ^(c.flow + c.ctrl_flow + arg_call_site)
+        a -> f in ^(c.flow_set + c.ctrl_flow + arg_call_site)
     }
 }
 
-fun labeled_objects[obs: Object, ls: Label] : set Object {
-    labels.ls & obs
+fun labeled_objects[obs: Object, ls: Label, labels_set: set Object->Label] : set Object {
+    labels_set.ls & obs
 }
 
 // Returns all objects labelled either directly or indirectly
 // through types.
-fun labeled_objects_with_types[cs: Ctrl, obs: Object, ls: Label] : set Object {
-    labeled_objects[obs, ls] + (cs.types).(labeled_objects[obs, ls])
+fun labeled_objects_with_types[cs: Ctrl, obs: Object, ls: Label, labels_set: set Object->Label] : set Object {
+    labeled_objects[obs, ls, labels_set] + (cs.types).(labeled_objects[obs, ls, labels_set])
 }
 
 // verifies that for an type o, it flows into first before flowing into next
-pred always_happens_before[cs: Ctrl, o: Object, first: (CallArgument + CallSite), next: (CallArgument + CallSite)] {
+pred always_happens_before[cs: Ctrl, o: Object, first: (CallArgument + CallSite), next: (CallArgument + CallSite), flow_set: set Ctrl->Src->CallArgument] {
     not (
         some c: cs | 
         some a: Object | {
             o = a or o in Type and a->o in c.types
-            a -> next in ^(c.flow + arg_call_site - 
+            a -> next in ^(c.flow_set + arg_call_site - 
                 (first->CallSite + CallArgument->first))
         }
     )
