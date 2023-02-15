@@ -248,7 +248,6 @@ pub(crate) fn questions(
 }
 
 impl LectureAnswer {
-
     #[cfg_attr(not(feature = "v-ann-lib"), dfpp::label(deletes, arguments = [0]))]
     fn delete_answer(self, bg: &mut MySqlBackend) {
         bg.delete("answers", &[("lec", self.lec.into()), ("q", self.id.into()), ("email", self.user.into())]);
@@ -338,7 +337,6 @@ pub(crate) fn forget_user(apikey: ApiKey, backend: &State<Arc<Mutex<MySqlBackend
     Redirect::to("/")
 }
 
-#[cfg_attr(not(feature = "v-ann-lib"), dfpp::label(presenter, return))]
 #[cfg_attr(not(feature = "v-ann-lib"), dfpp::label(safe_source_with_bless, return))]
 fn get_presenters(bg: &mut MySqlBackend, num: u8) -> Vec<String> {
     let mut presenter_emails = vec![];
