@@ -37,6 +37,22 @@ pred find_incomplete_one_deleter {
     }
 }
 
+pred valid_additive_repair[ar : AdditiveRepair] {
+    some c : ar.extracallsites {
+        c.function in Function
+        all ca : arg_call_site.c {
+
+        }
+    }   
+}
+
+pred one_deleter_additive_repair[ar : AdditiveRepair] {
+    some c : Ctrl | {
+        (not one_deleter[flow, labels])
+        (one_deleter[ar.new_flow, new_labels])
+    }
+}
+
 run {
     find_incomplete_one_deleter
 } for 1 IncompleteLabel, 0 ErroneousFlow for Flows

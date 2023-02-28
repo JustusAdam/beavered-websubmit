@@ -44,9 +44,9 @@ pred find_incomplete_only_send_allowed {
     }
 }
 
-// run {
-//     find_incomplete_only_send_allowed
-// } for 1 IncompleteLabel, 0 ErroneousFlow for Flows
+run {
+    find_incomplete_only_send_allowed
+} for 1 IncompleteLabel, 0 ErroneousFlow for Flows
 
 
 // run {
