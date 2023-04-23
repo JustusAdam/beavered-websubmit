@@ -1,3 +1,10 @@
 /target
 **/*.rs.bk
 analysis_result.frg
+
+*.gv.pdf
+*.gv
+*.ntgb.json
+*.regal
+*.mir
+*.df
