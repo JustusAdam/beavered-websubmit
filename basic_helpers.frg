@@ -36,11 +36,13 @@ pred flows_to[cs: Ctrl, o: one Type + Src, f : (CallArgument + CallSite), flow_s
     }
 }
 
-pred flows_to_ctrl[cs: Ctrl, o: Object, f : CallArgument, flow_set: set Ctrl->Src->CallArgument] {
+pred flows_to_ctrl[cs: Ctrl, o: Object, f : (CallArgument + CallSite), flow_set: set Ctrl->Src->CallArgument] {
     some c: cs |
     some a : Src | {
         o = a or o in Type and a->o in c.types
-        a -> f in ^(c.flow_set + c.ctrl_flow + arg_call_site)
+        ((a -> f in ^(c.flow_set + c.ctrl_flow + arg_call_site))
+		or
+		(some f.arg_call_site and (a -> f.arg_call_site in ^(c.flow_set + c.ctrl_flow + arg_call_site))))
     }
 }
 

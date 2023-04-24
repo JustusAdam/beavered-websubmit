@@ -15,7 +15,7 @@ fun all_recipients[f: CallSite, ctrl: Ctrl, flow_set: set Ctrl->Src->CallArgumen
 
 fun all_scopes[f: Sink, c: Ctrl, labels_set: set Object->Label] : set Object {
 	labeled_objects[arguments[f.arg_call_site], scopes, labels_set] + {
-		arg : c.types.(`ApiKey + `Admin) & FormalParameter | {
+		arg : c.types.(labeled_objects[Type, safe_source, labels_set]) & FormalParameter | {
 			some (f & Return)
 		}
 	}

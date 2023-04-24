@@ -37,9 +37,9 @@ pred find_incomplete_one_deleter {
     }
 }
 
-run {
-    find_incomplete_one_deleter
-} for 1 IncompleteLabel, 0 ErroneousFlow for Flows
+// run {
+//     find_incomplete_one_deleter
+// } for 1 IncompleteLabel, 0 ErroneousFlow for Flows
 
 
 // run {
