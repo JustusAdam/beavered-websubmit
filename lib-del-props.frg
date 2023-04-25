@@ -7,12 +7,12 @@ open "lib_framework_helpers.frg"
 // function on every value (or an equivalent type) that is ever stored.
 pred one_deleter {
     some cleanup : Ctrl |
-        #{v_or_t: labeled_objects[Src + Type, sensitive] |
-            (some ctrl: Ctrl, store: labeled_objects[CallArgument, stores], v: v_or_t + ctrl.types.v_or_t | flows_to[ctrl, v, store])}
+        #{v_or_t: labeled_objects[Src + Type, sensitive, labels] |
+            (some ctrl: Ctrl, store: labeled_objects[CallArgument, stores, labels], v: v_or_t + ctrl.types.v_or_t | flows_to[ctrl, v, store, flow])}
         =
-        #{v : labeled_objects[Src, from_storage] |
-            (some f: labeled_objects[CallArgument, deletes] | 
-                flows_to[cleanup, v, f])}
+        #{v : labeled_objects[Src, from_storage, labels] |
+            (some f: labeled_objects[CallArgument, deletes, labels] | 
+                flows_to[cleanup, v, f, flow])}
 }
 
 //run {} for Flows

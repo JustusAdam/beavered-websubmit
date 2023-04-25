@@ -6,11 +6,11 @@ on_return = true
 marker = "sink"
 on_argument = [0]
 
-[["lettre::sendmail::SendmailTransport::send"]]
+[["lettre::Transport::send"]]
 marker = "sink"
 on_argument = [1]
 
-[["rocket::response::redirect::Redirect::to"]]
+[["lettre_email::EmailBuilder::to"]]
 marker = "scopes"
 on_argument = [1]
 
@@ -32,8 +32,8 @@ marker = "sensitive"
 [["rocket::state::State"]]
 marker = "server_state"
 
-[["nonexistent_and_hacky"]]
-marker = "safe_source_with_bless"
-[["nonexistent_and_hacky"]]
-marker = "bless_safe_source"
+# [["nonexistent_and_hacky"]]
+# marker = "safe_source_with_bless"
+# [["nonexistent_and_hacky"]]
+# marker = "bless_safe_source"
 

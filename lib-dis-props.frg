@@ -8,17 +8,16 @@ open "lib_framework_helpers.frg"
 
 pred only_send_to_allowed_sources {
 	all c: Ctrl |
-        all a : labeled_objects_with_types[c, Src + Type, sensitive], f : labeled_objects[Sink, sink] | 
-        (flows_to[c, a, f]) 
+        all a : labeled_objects_with_types[c, Src + Type, sensitive, labels], f : labeled_objects[Sink, sink, labels] | 
+        (flows_to[c, a, f, flow]) 
         implies {
-			(some all_scopes[f, c]) and 
-			(all o: Src, scope: all_scopes[f, c] | 
-			flows_to[c, o, scope]
+			(all o: Src, scope: all_scopes[f, c, flow, labels] | 
+			flows_to[c, o, scope, flow]
             implies {
-                (some o & safe_sources[c])
-                or always_happens_before[c, o, safe_sources[c], scope]
-                or (some safe : safe_sources[c] |
-                    flows_to[c, safe, o])
+                (some o & safe_sources[c, flow, labels])
+                or always_happens_before[c, o, safe_sources[c, flow, labels], scope, flow]
+                or (some safe : safe_sources[c, flow, labels] |
+                    flows_to[c, safe, o, flow])
             })
 		}
 }
@@ -57,18 +56,17 @@ pred only_send_to_allowed_sources {
 
 
 pred guarded_storage_release {
-	all c: Ctrl, a : labeled_objects[Src + Type, from_storage], f :
-	labeled_objects[Sink, sink] + Return | 
-        (flows_to[c, a, f]) 
+	all c: Ctrl, a : labeled_objects[Src + Type, from_storage, labels], f :
+	labeled_objects[Sink, sink, labels] + Return | 
+        (flows_to[c, a, f, flow]) 
         implies {
-			(some all_scopes[f, c]) and 
-			(all o: Src, scope: all_scopes[f, c] | 
-			flows_to[c, o, scope]
+			(all o: Src, scope: all_scopes[f, c, flow, labels] | 
+			flows_to[c, o, scope, flow]
             implies {
-                (some o & safe_sources[c])
-                or always_happens_before[c, o, safe_sources[c], scope]
-                or (some safe : safe_sources[c] |
-                    flows_to[c, safe, o])
+                (some o & safe_sources[c, flow, labels])
+                or always_happens_before[c, o, safe_sources[c, flow, labels], scope, flow]
+                or (some safe : safe_sources[c, flow, labels] |
+                    flows_to[c, safe, o, flow])
             })
 		}
 }
