@@ -5,17 +5,17 @@ open "basic_helpers.frg"
 open "framework_helpers.frg"
 
 pred only_send_to_allowed_sources {
-	all c: Ctrl, a : labeled_objects[FormalParameter + Type, sensitive], f : labeled_objects[Sink, sink] | 
-        (flows_to[c, a, f]) 
+	all c: Ctrl, a : labeled_objects[FormalParameter + Type, sensitive, labels], f : labeled_objects[Sink, sink, labels] | 
+        (flows_to[c, a, f, flow]) 
         implies {
-			(some all_scopes[f, c]) and 
-			(all o: Object, scope: all_scopes[f, c] | 
-			flows_to_ctrl[c, o, scope]
+			(some all_scopes[f, c, labels]) and 
+			(all o: Object, scope: all_scopes[f, c, labels] | 
+			flows_to_ctrl[c, o, scope, flow]
             implies {
-                (some o & safe_sources[c]) // either it is safe itself
-                or always_happens_before[c, o, safe_sources[c], scope] // obj must go through something in safe before scope
-                or (some safe : safe_sources[c] |
-                    flows_to_ctrl[c, safe, o]) // safe must have flowed to obj at some point
+                (some o & safe_sources[c, flow, labels]) // either it is safe itself
+                or always_happens_before[c, o, safe_sources[c, flow, labels], scope, flow] // obj must go through something in safe before scope
+                or (some safe : safe_sources[c, flow, labels] |
+                    flows_to_ctrl[c, safe, o, flow]) // safe must have flowed to obj at some point
             })
 		}
 }
