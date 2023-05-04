@@ -16,7 +16,7 @@ use std::hash::Hash;
 use std::sync::{Arc, Mutex};
 
 #[cfg_attr(not(feature = "v-ann-lib"), dfpp::label(sensitive))]
-#[cfg_attr(not(feature = "v-ann-lib"), dfpp::output_types(LectureAnswer))]
+#[cfg_attr(not(feature = "v-ann-lib"), dfpp::output_types(crate::questions::LectureAnswer))]
 #[derive(Debug, FromForm)]
 pub(crate) struct LectureQuestionSubmission {
     answers: HashMap<u64, String>,
