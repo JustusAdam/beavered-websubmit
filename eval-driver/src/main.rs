@@ -231,7 +231,7 @@ fn run_edit(
         .map(|version| {
             let mut dfpp_cmd = Command::new("cargo");
             dfpp_cmd.current_dir(cd).arg("dfpp").stdin(Stdio::null());
-            let external_ann_file_name = format!("{version}-external-annotations.json");
+            let external_ann_file_name = format!("{version}-external-annotations.toml");
             let mut external_ann_file: std::path::PathBuf = cd.into();
             external_ann_file.push(&external_ann_file_name);
             if external_ann_file.exists() {
