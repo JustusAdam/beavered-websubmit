@@ -12,7 +12,7 @@ fun all_scopes[f: CallSite, c: Ctrl] : set Object {
 	let direct = labeled_objects[arguments[call_site], scopes, labels] |
     {some direct => direct
     else {f = Return =>
-        (c.types).labeled_objects[Type, safe_source, labels]
+        (c.types).(labeled_objects[Type, safe_source, labels])
         else
         { scope : labeled_objects[Object, scopes, labels] |
             flows_to[c, scope, call_site, flow]
