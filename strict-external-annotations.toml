@@ -14,3 +14,19 @@ on_return = true
 marker = "sink"
 on_argument = [0]
 
+[["alloc::vec::Vec::append"]]
+marker = "not_safe_source"
+on_return = true
+
+[["alloc::vec::Vec::append"]]
+marker = "not_safe_source"
+on_argument = [0, 1]
+
+# uncommenting the below code will allow dis-1-c to be caught but dis-2-a to fail.
+# [["alloc::vec::Vec::push"]]
+# marker = "not_safe_source"
+# on_return = true
+
+# [["alloc::vec::Vec::push"]]
+# marker = "not_safe_source"
+# on_argument = [0, 1]

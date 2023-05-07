@@ -2,7 +2,7 @@
 
 open "analysis_result.frg"
 open "basic_helpers.frg"
-open "framework_helpers.frg"
+open "strict_framework_helpers.frg"
 
 pred only_send_to_allowed_sources {
 	all c: Ctrl, a : labeled_objects[FormalParameter + Type, sensitive, labels], f : labeled_objects[Sink, sink, labels] | 
