@@ -4,7 +4,7 @@ open "analysis_result.frg"
 open "basic_helpers.frg"
 
 fun all_recipients[f: CallSite, ctrl: Ctrl, flow_set: set Ctrl->Src->CallArgument] : set Src {
-    ^(ctrl.flow_set + arg_call_site).(all_scopes[f, ctrl])
+    ^(ctrl.flow_set + arg_call_site).(all_scopes[f, ctrl, flow_set])
 }
 
 fun all_scopes[f: CallSite, c: Ctrl, flow_set: set Ctrl->Src->CallArgument] : set Object {
@@ -28,7 +28,7 @@ pred some_authorized[principal: Src, c: Ctrl] {
 pred stores_to_authorized[flow_set: set Ctrl->Src->CallArgument] {
     all c: Ctrl, a : labeled_objects[FormalParameter + Type, sensitive, labels], f : CallSite | 
         (some r : labeled_objects[arguments[f], stores, labels] | flows_to[c, a, r, flow_set]) 
-        implies some_authorized[all_recipients[f, c], c]
+        implies some_authorized[all_recipients[f, c, flow_set], c]
 }
 
 
