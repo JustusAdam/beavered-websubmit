@@ -12,15 +12,15 @@ pred some_authorized[principal: Src, c: Ctrl] {
 // Calls to store a value also are influenced by the authenticated user 
 // and thus likely make it possible to associate the stored value with 
 // the user.
-pred stores_to_authorized {
+pred stores_to_authorized[flow_set: set Ctrl->Src->CallArgument] {
     all c: Ctrl, a : labeled_objects[FormalParameter + Type, sensitive, labels], f : CallSite | 
-        (some r : labeled_objects[arguments[f], stores, labels] | flows_to[c, a, r, flow]) 
-        implies some_authorized[all_recipients[f, c, flow, labels], c]
+        (some r : labeled_objects[arguments[f], stores, labels] | flows_to[c, a, r, flow_set]) 
+        implies some_authorized[all_recipients[f, c, flow_set, labels], c]
 }
 
 test expect {
     // Storage properties
     stores_are_safe: {
-        stores_to_authorized
+        stores_to_authorized[flow]
     } for Flows is theorem
 }

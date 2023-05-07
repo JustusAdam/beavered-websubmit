@@ -28,6 +28,5 @@ fun safe_sources[c: Ctrl, flow_set: set Ctrl->Src->CallArgument, labels_set: set
 }
 
 fun all_recipients[f: CallSite, ctrl: Ctrl, flow_set: set Ctrl->Src->CallArgument, labels_set: set Object->Label] : set Src {
-
-    *(ctrl.flow + arg_call_site).(all_scopes[arg_call_site.f, ctrl, flow, labels])
+    *(ctrl.flow_set + arg_call_site).(all_scopes[arg_call_site.f, ctrl, flow_set, labels_set])
 }

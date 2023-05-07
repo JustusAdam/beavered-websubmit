@@ -4,20 +4,18 @@ open "analysis_result.frg"
 open "basic_helpers.frg"
 open "lib_framework_helpers.frg"
 
-
-
-pred only_send_to_allowed_sources {
+pred only_send_to_allowed_sources[flow_set: set Ctrl->Src->CallArgument] {
 	all c: Ctrl |
         all a : labeled_objects_with_types[c, Src + Type, sensitive, labels], f : labeled_objects[Sink, sink, labels] | 
-        (flows_to[c, a, f, flow]) 
+        (flows_to[c, a, f, flow_set]) 
         implies {
-			(all o: Src, scope: all_scopes[f, c, flow, labels] | 
-			flows_to[c, o, scope, flow]
+			(all o: Src, scope: all_scopes[f, c, flow_set, labels] | 
+			flows_to[c, o, scope, flow_set]
             implies {
-                (some o & safe_sources[c, flow, labels])
-                or always_happens_before[c, o, safe_sources[c, flow, labels], scope, flow]
-                or (some safe : safe_sources[c, flow, labels] |
-                    flows_to[c, safe, o, flow])
+                (some o & safe_sources[c, flow_set, labels])
+                or always_happens_before[c, o, safe_sources[c, flow_set, labels], scope, flow_set]
+                or (some safe : safe_sources[c, flow_set, labels] |
+                    flows_to[c, safe, o, flow_set])
             })
 		}
 }
@@ -55,18 +53,18 @@ pred only_send_to_allowed_sources {
 // }
 
 
-pred guarded_storage_release {
+pred guarded_storage_release[flow_set: set Ctrl->Src->CallArgument] {
 	all c: Ctrl, a : labeled_objects[Src + Type, from_storage, labels], f :
 	labeled_objects[Sink, sink, labels] + Return | 
-        (flows_to[c, a, f, flow]) 
+        (flows_to[c, a, f, flow_set]) 
         implies {
-			(all o: Src, scope: all_scopes[f, c, flow, labels] | 
-			flows_to[c, o, scope, flow]
+			(all o: Src, scope: all_scopes[f, c, flow_set, labels] | 
+			flows_to[c, o, scope, flow_set]
             implies {
-                (some o & safe_sources[c, flow, labels])
-                or always_happens_before[c, o, safe_sources[c, flow, labels], scope, flow]
-                or (some safe : safe_sources[c, flow, labels] |
-                    flows_to[c, safe, o, flow])
+                (some o & safe_sources[c, flow_set, labels])
+                or always_happens_before[c, o, safe_sources[c, flow_set, labels], scope, flow_set]
+                or (some safe : safe_sources[c, flow_set, labels] |
+                    flows_to[c, safe, o, flow_set])
             })
 		}
 }
@@ -76,10 +74,10 @@ pred guarded_storage_release {
 test expect {
     // Happens-before properties
     only_send_to_allowed: {
-        only_send_to_allowed_sources
+        only_send_to_allowed_sources[flow]
     } for Flows is theorem
 
     guarded_release: {
-        guarded_storage_release
+        guarded_storage_release[flow]
     } for Flows is theorem
 }

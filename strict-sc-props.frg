@@ -3,11 +3,11 @@
 open "analysis_result.frg"
 open "basic_helpers.frg"
 
-fun all_recipients[f: CallSite, ctrl: Ctrl] : set Src {
-    ^(ctrl.flow + arg_call_site).(all_scopes[f, ctrl])
+fun all_recipients[f: CallSite, ctrl: Ctrl, flow_set: set Ctrl->Src->CallArgument] : set Src {
+    ^(ctrl.flow_set + arg_call_site).(all_scopes[f, ctrl])
 }
 
-fun all_scopes[f: CallSite, c: Ctrl] : set Object {
+fun all_scopes[f: CallSite, c: Ctrl, flow_set: set Ctrl->Src->CallArgument] : set Object {
     let call_site = f |
 	let direct = labeled_objects[arguments[call_site], scopes, labels] |
     {some direct => direct
@@ -15,7 +15,7 @@ fun all_scopes[f: CallSite, c: Ctrl] : set Object {
         (c.types).(labeled_objects[Type, safe_source, labels])
         else
         { scope : labeled_objects[Object, scopes, labels] |
-            flows_to[c, scope, call_site, flow]
+            flows_to[c, scope, call_site, flow_set]
         }
     }
     }
@@ -25,9 +25,9 @@ pred some_authorized[principal: Src, c: Ctrl] {
 }
 
 
-pred stores_to_authorized {
+pred stores_to_authorized[flow_set: set Ctrl->Src->CallArgument] {
     all c: Ctrl, a : labeled_objects[FormalParameter + Type, sensitive, labels], f : CallSite | 
-        (some r : labeled_objects[arguments[f], stores, labels] | flows_to[c, a, r, flow]) 
+        (some r : labeled_objects[arguments[f], stores, labels] | flows_to[c, a, r, flow_set]) 
         implies some_authorized[all_recipients[f, c], c]
 }
 
@@ -35,6 +35,6 @@ pred stores_to_authorized {
 test expect {
     // Storage properties
     stores_are_safe: {
-        stores_to_authorized
+        stores_to_authorized[flow]
     } for Flows is theorem
 }
