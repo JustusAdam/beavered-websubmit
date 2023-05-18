@@ -1,21 +1,15 @@
-#lang forge
-
-open "analysis_result.frg"
-open "basic_helpers.frg"
-open "framework_helpers.frg"
-
-//run {} for Flows
 
 // I'm using an explicit `next and `into_iter here, but this could be done via
-// labels as well to make it cleaner.
-pred flows_to_noskip[ctrls: Ctrl, o: one Type + Src, f : (CallArgument + CallSite)] {
+// labels_set as well to make it cleaner.
+pred flows_to_noskip[ctrls: Ctrl, o: one Type + Src, f : (CallArgument + CallSite), flow_set: set Src->Sink, labels_set: set Object->Label] {
     some c: ctrls |
+    let c_flow = flow_for_ctrl[c, flow_set] |
     let a = to_source[c, o] |
-    let safe_functions = labeled_objects[Function, into_iter, labels] |
-	let next_functions = labeled_objects[Function, next, labels] |
+    let safe_functions = labeled_objects[Function, into_iter, labels_set] |
+	let next_functions = labeled_objects[Function, next, labels_set] |
     let safe_arg_call_sites = arg_call_site & Sink->(function.safe_functions + { n : function.next_functions | n->n in c.ctrl_flow}) |
-    let rel = ^((c.flow + safe_arg_call_sites)) | {
-        some c.flow[a] // a exists in cs
+    let rel = ^((c_flow + safe_arg_call_sites)) | {
+        some c_flow[a] // a exists in cs
         and (a -> f in rel)
     }
 }
@@ -24,24 +18,17 @@ pred flows_to_noskip[ctrls: Ctrl, o: one Type + Src, f : (CallArgument + CallSit
 
 // Asserts that there exists one controller which calls a deletion
 // function on every value (or an equivalent type) that is ever stored.
-pred one_deleter {
+pred property[flow_set: set Src->Sink, labels_set: set Object->Label] {
     some cleanup : Ctrl |
-    some auth: labeled_objects[cleanup.types[Src], auth_witness, labels] |
-    all t: labeled_objects[Type, sensitive, labels] |
-        (some ctrl: Ctrl, store: labeled_objects[CallArgument, stores, labels] | flows_to[ctrl, t, store, flow]) 
+    some auth: labeled_objects[cleanup.types[Src], auth_witness, labels_set] |
+    all t: labeled_objects[Type, sensitive, labels_set] |
+        (some ctrl: Ctrl, store: labeled_objects[CallArgument, stores, labels_set] | flows_to[ctrl, t, store, flow_set]) 
         implies
-        (some f: labeled_objects[CallArgument, deletes, labels], ot : t + t.otype | 
+        (some f: labeled_objects[CallArgument, deletes, labels_set], ot : t + t.otype | 
          let src = to_source[cleanup, ot] | {
             unconditional[cleanup, src]
-            flows_to[cleanup, auth, src, flow]
+            flows_to[cleanup, auth, src, flow_set]
             flows_to_noskip[cleanup, ot, f]
          })
 }
 
-test expect {
-    // Deletion properties
-    data_is_deleted: {
-        one_deleter
-    } for Flows is theorem
-
-}

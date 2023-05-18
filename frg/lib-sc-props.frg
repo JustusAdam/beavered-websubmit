@@ -1,9 +1,3 @@
-#lang forge
-
-open "analysis_result.frg"
-open "basic_helpers.frg"
-open "lib_framework_helpers.frg"
-
 pred some_authorized[principal: Src, c: Ctrl] {
     some principal & labeled_objects_inc_fp[c, request_generated, labels]
 }
@@ -12,15 +6,9 @@ pred some_authorized[principal: Src, c: Ctrl] {
 // Calls to store a value also are influenced by the authenticated user 
 // and thus likely make it possible to associate the stored value with 
 // the user.
-pred stores_to_authorized {
-    all c: Ctrl, a : labeled_objects[FormalParameter + Type, sensitive, labels], f : CallSite | 
-        (some r : labeled_objects[arguments[f], stores, labels] | flows_to[c, a, r, flow]) 
-        implies some_authorized[all_recipients[f, c, flow, labels], c]
+pred property[flow_set: set Src->CallArgument, labels_set: set Object->Label] {
+    all c: Ctrl, a : labeled_objects[FormalParameter + Type, sensitive, labels_set], f : CallSite | 
+        (some r : labeled_objects[arguments[f], stores, labels_set] | flows_to[c, a, r, flow_set]) 
+        implies some_authorized[all_recipients[f, c, flow, labels_set], c]
 }
 
-test expect {
-    // Storage properties
-    stores_are_safe: {
-        stores_to_authorized
-    } for Flows is theorem
-}

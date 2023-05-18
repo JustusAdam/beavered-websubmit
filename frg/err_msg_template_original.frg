@@ -1,23 +1,14 @@
-sig ErroneousFlow {
-    minimal_subflow: set Src->Sink
-}
-
 // Original version
-pred find_erroneous_my_pred_int[ef: ErroneousFlow] {
-    some c : Ctrl | {
-		(c->ef.minimal_subflow in flow)
-    (not predicate[flow])
-    (predicate[(flow - (c->ef.minimal_subflow))]) }
-}
-
-pred find_erroneous_my_pred {
-    some ef1: ErroneousFlow {
-        find_erroneous_my_pred_int[ef1]
+pred find_erroneous_my_pred_int[ef: set Src->Sink] {
+    some c : Ctrl | 
+    let c_flow = flow_for_ctrl[c, flow] |
+    {
+		(ef in c_flow)
+        (not predicate[c_flow])
+        (predicate[(c_flow - ef)]) 
     }
 }
 
-test expect {
-    create_min_instance: {
-        find_erroneous_my_pred
-    } for 1 ErroneousFlow for Flows is unsat
+pred find_erroneous_my_pred {
+    find_erroneous_my_pred_int[minimal_subflow]
 }
