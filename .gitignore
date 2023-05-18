@@ -8,3 +8,4 @@ analysis_result.frg
 *.regal
 *.mir
 *.df
+.vscode/settings.json
