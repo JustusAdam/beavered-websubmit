@@ -84,7 +84,7 @@ struct Args {
     #[clap(long)]
     no_edits: bool,
 
-    #[clap(long, default_value_t)]
+    #[clap(long, default_value_t = 4)]
     parallelism: usize,
 }
 
@@ -607,7 +607,7 @@ fn print_results_for_property<W: std::io::Write>(
             write!(w, " {:head_cell_width$} ", edit)?;
             write!(w, "| {:^body_cell_width$} ", expected)?;
             for (i, (_, (_, mutex))) in versions.iter().enumerate() {
-                let result = mutex.lock().unwrap();
+                let result = mutex.try_lock().unwrap();
                 match (&expected, &result.0.unwrap()) {
                     (RunResult::Success, RunResult::CheckError) => false_positives[i] += 1,
                     (RunResult::CheckError, RunResult::Success) => false_negatives[i] += 1,
@@ -643,6 +643,7 @@ fn main() {
     use std::io::Write;
     let args = Box::leak::<'static>(Box::new(Args::parse()));
     std::env::set_current_dir(&args.directory);
+    assert!(args.parallelism > 0);
     let property_versions: Vec<_> = if args.property_versions.is_empty() {
         println!("INFO: No specification variants to run given, running all known ones");
         ALL_KNOWN_VARIANTS.to_vec()
@@ -812,6 +813,8 @@ fn main() {
                         for emv in error_message_versions.iter() {
                             send_work.send((config, result_mutex, emv)).unwrap()
                         }
+                    } else {
+                        progress.inc(error_message_versions.len() as u64);
                     }
                 }
             }
@@ -822,12 +825,14 @@ fn main() {
         for _ in 0..args.parallelism {
             let my_receive = receive_work.clone();
             let my_results_ref = &results;
+            let progress_ref = &progress;
             std::thread::Builder::new()
                 .spawn_scoped(scope, move || {
                     while let Some((config, mutex, emv)) =
                         my_receive.lock().ok().and_then(|r| r.recv().ok())
                     {
                         let emvresult = config.run_error_msg(emv).unwrap();
+                        progress_ref.inc(1);
                         mutex.lock().unwrap().1.push((emv, emvresult));
                     }
                 })
@@ -838,17 +843,14 @@ fn main() {
     for type_results in results.values() {
         for edit_results in type_results.values() {
             for (config, result) in edit_results.values() {
-                let results = &result.lock().unwrap();
+                let results = &result.try_lock().unwrap();
                 if matches!(results.0, Some(RunResult::CheckError)) {
                     for (emv, result) in results.1.iter() {
                         progress.suspend(|| {
                             writeln!(w, "{}: {emv} {result}", config.describe()).unwrap();
                         });
-                        progress.inc(1);
                     }
-                } else {
-                    progress.inc(error_message_versions.len() as u64);
-                }
+                } 
             }
         }
     }
