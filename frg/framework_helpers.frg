@@ -6,7 +6,7 @@ fun flow_roots[c: Ctrl, flow_set: set Src->CallArgument] : set Src->Sink {
 }
 
 fun all_recipients[f: CallSite, ctrl: Ctrl, flow_set: set Src->CallArgument, labels_set: set Object->Label] : set Src {
-	let c_flow = flow_for_ctrl[c, flow_set] |
+	let c_flow = flow_for_ctrl[ctrl, flow_set] |
     ^(c_flow + arg_call_site).(labeled_objects[arguments[f], scopes, labels_set]) & Src
 }
 

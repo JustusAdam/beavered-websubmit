@@ -5,7 +5,7 @@ pred property[flow_set: set Src->CallArgument, labels_set: set Object->Label] {
         (flows_to[c, a, f, flow_set]) 
         implies {
 			(some all_scopes[f, c, labels_set]) and 
-			(all o: Object, scope: all_scopes[f, c, labels_set] | 
+			(all o: Object, scope: all_scopes[f, labels_set] | 
 			flows_to[c, o, scope, flow_set]
             implies {
                 (some o & safe_sources[c, flow_set, labels_set]) // either it is safe itself

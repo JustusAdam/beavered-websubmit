@@ -27,7 +27,7 @@ fun ctrl_flow_for_ctrl[ctrl: one Ctrl, flow_set: set CallSite->CallSite]: set Ca
 pred flows_to[cs: Ctrl, o: one Type + Src, f : (CallArgument + CallSite), flow_set: Src->CallArgument] {
     some c: cs |
     let c_flow = flow_for_ctrl[c, flow_set] |
-    let a = to_source[c, o] | {
+    let a = to_source[o] | {
         some c_flow[a] // a exists in cs
         and (a -> f in ^(c_flow + arg_call_site))
     }
@@ -39,7 +39,7 @@ pred flows_to_ctrl[cs: Ctrl, o: Object, f : (CallArgument + CallSite), flow_set:
     let c_ctrl_flow = ctrl_flow_for_ctrl[c, flow_set] |
     let total_flow = ^(c_flow + c_ctrl_flow + arg_call_site) |
     some a : Src | {
-        o = a or o in Type and a->o in c.types
+        o = a or o in Type and a->o in types
         ((a -> f in total_flow)
 		or
 		(some f.arg_call_site and (a -> f.arg_call_site in total_flow)))
@@ -62,7 +62,7 @@ pred always_happens_before[cs: Ctrl, o: Object, first: (CallArgument + CallSite)
         some c: cs | 
         let c_flow = flow_for_ctrl[c, flow_set] |
         some a: Object | {
-            o = a or o in Type and a->o in c.types
+            o = a or o in Type and a->o in types
             a -> next in ^(c_flow + arg_call_site - 
                 (first->CallSite + CallArgument->first))
         }

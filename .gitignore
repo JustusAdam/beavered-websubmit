@@ -9,3 +9,4 @@ analysis_result.frg
 *.mir
 *.df
 .vscode/settings.json
+/verification/

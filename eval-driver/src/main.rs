@@ -1,7 +1,11 @@
 extern crate clap;
 extern crate humantime;
 extern crate indicatif;
+extern crate either;
+extern crate anyhow;
 use clap::Parser;
+
+use either::Either;
 
 use indicatif::ProgressBar;
 
@@ -70,6 +74,13 @@ struct Args {
     /// "optimized", default to all
     #[clap(long = "emv")]
     error_message_versions: Option<Vec<String>>,
+
+    /// Don't run any edits
+    #[clap(long)]
+    no_edits: bool,
+
+    #[clap(long, default_value_t)]
+    parallelism: usize,
 }
 
 impl Args {
@@ -237,6 +248,17 @@ impl std::fmt::Display for RunResult {
     }
 }
 
+#[derive(Debug)]
+struct StringErr(String);
+
+impl std::fmt::Display for StringErr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl std::error::Error for StringErr {}
+
 fn read_and_count_forge_unsat_instance(all: &str) -> Result<u32, String> {
     extern crate serde_lexpr as sexpr;
     use std::io::Read;
@@ -276,7 +298,8 @@ fn read_and_count_forge_unsat_instance(all: &str) -> Result<u32, String> {
                 _ => Err("'minimal_subflow' list elements should be 3-tuples"),
             }
         })
-        .count() as u32)
+        .count() as u32
+    )
 }
 
 #[derive(Clone, Copy)]
@@ -336,25 +359,20 @@ impl<'p> RunConfiguration<'p> {
     fn verbose_commands(&self) -> bool {
         self.args.verbose_commands()
     }
-    fn directory(&self) -> &std::path::Path {
-        self.args.directory.as_path()
-    }
     fn outpath(&self) -> std::path::PathBuf {
         let edit = if let Some(edit) = self.edit {
             format!("{edit}")
         } else {
             "original".to_string()
         };
-        self.directory()
-            .join(&self.args.output_directory)
+        self.args.output_directory
             .join(edit)
     }
     fn forge_file_name_for(&self, what: &str) -> String {
         format!("{}-{}-{what}.frg", self.version.0, self.typ)
     }
     fn forge_in_file(&self, what: &str) -> std::path::PathBuf {
-        self.directory()
-            .join(self.forge_source_dir())
+        self.forge_source_dir()
             .join(self.forge_file_name_for(what))
     }
     fn forge_out_file(&self, what: &str) -> std::path::PathBuf {
@@ -363,18 +381,17 @@ impl<'p> RunConfiguration<'p> {
     fn analysis_result_path(&self) -> std::path::PathBuf {
         self.forge_out_file("analysis-result")
     }
-    fn run_edit(&self) -> std::io::Result<RunResult> {
+    fn run_edit(&self) -> anyhow::Result<RunResult> {
         use std::process::*;
         let (version, includes) = self.version;
 
         let result_file_path = self.analysis_result_path();
         let mut dfpp_cmd = Command::new("cargo");
         dfpp_cmd
-            .current_dir(self.directory())
-            .args(["dfpp", "--result-file", &result_file_path.to_string_lossy()])
+            .args(["dfpp", "--result-path", &result_file_path.to_string_lossy(), "--model-version", "v2", "--inline-elision", "--skip-sigs", "--abort-after-analysis"])
             .stdin(Stdio::null());
         let external_ann_file_name = format!("{}-external-annotations.toml", self.version.0);
-        if self.directory().join(&external_ann_file_name).exists() {
+        if std::path::Path::new(&external_ann_file_name).exists() {
             dfpp_cmd.args(&["--external-annotations", external_ann_file_name.as_str()]);
         }
         dfpp_cmd.args(&["--", "--features", &format!("v-ann-{version}")]);
@@ -401,17 +418,17 @@ impl<'p> RunConfiguration<'p> {
             let mut w = std::fs::OpenOptions::new()
                 .truncate(true)
                 .write(true)
+                .create(true)
                 .open(&check_file_path)?;
-            self.write_headers_and_prop(&mut w)?;
+            self.write_headers_and_prop(&mut w, "sigs")?;
             writeln!(
                 w,
-                "test expect {{ {}_{}: property for Flows is theorem }}",
+                "test expect {{ {}_{}: {{ property[flow, labels] }} for Flows is theorem }}",
                 self.version.0, self.typ
             )?;
         }
         let mut racket_cmd = Command::new("racket");
         racket_cmd
-            .current_dir(self.directory())
             .arg(&check_file_path)
             .stdin(Stdio::null())
             .stdout(Stdio::piped());
@@ -431,26 +448,32 @@ impl<'p> RunConfiguration<'p> {
         }
     }
 
-    fn run_error_msg(&self, template: &str) -> std::io::Result<ErrMsgResult> {
+    fn run_error_msg(&self, template: &str) -> anyhow::Result<ErrMsgResult> {
         use std::process::*;
-        let frg_file = self.forge_out_file(&format!("err_msg_check_{template}"));
+        let frg_file = self.forge_out_file(&format!("err-msg-check-{template}"));
         {
             use std::io::{copy, Read, Write};
             let mut w = std::fs::OpenOptions::new()
                 .truncate(true)
                 .write(true)
+                .create(true)
                 .open(&frg_file)?;
-            self.write_headers_and_prop(&mut w)?;
+            let sig_file = if template == "optimized" {
+                "err_msg_optimized_sigs"
+            } else {
+                "err_msg_sigs"
+            };
+            self.write_headers_and_prop(&mut w, sig_file)?;
+            let template_file = self.forge_source_dir().join(&format!("err_msg_template_{template}.frg"));
             copy(
                 &mut std::fs::File::open(
-                    self.forge_in_file(&format!("err_msg_template_{template}")),
+                    template_file
                 )?,
                 &mut w,
             )?;
         }
         let mut racket_cmd = Command::new("racket");
         racket_cmd
-            .current_dir(self.directory())
             .arg(&frg_file)
             .stdin(Stdio::null());
         if !self.verbose() {
@@ -462,7 +485,6 @@ impl<'p> RunConfiguration<'p> {
         }
         let time = std::time::Instant::now();
         let child = racket_cmd.spawn()?;
-        let wakeup = std::sync::Condvar::new();
 
         use std::sync::mpsc::{channel, RecvTimeoutError};
         use std::thread;
@@ -480,12 +502,21 @@ impl<'p> RunConfiguration<'p> {
                 if output.status.success() {
                     Ok(ErrMsgResult::Sat(time.elapsed()))
                 } else {
-                    Ok(ErrMsgResult::Success(
-                        time.elapsed(),
-                        read_and_count_forge_unsat_instance(&String::from_utf8_lossy(
+                    let forge_output_str = String::from_utf8_lossy(
                             &output.stdout,
-                        ))
-                        .unwrap(),
+                        );
+                    let counting_tesult = 
+                        read_and_count_forge_unsat_instance(&forge_output_str);
+                    if counting_tesult.is_err() {
+                        use std::io::Write;
+                        write!(
+                            &mut std::fs::OpenOptions::new().create(true).truncate(true).write(true).open(self.args.output_directory.join("err_msg_ouput.txt"))?,
+                            "{}",
+                            forge_output_str,
+                        )?;
+                    }
+                    Ok(ErrMsgResult::Success(
+                        time.elapsed(), counting_tesult.map_err(StringErr)?
                     ))
                 }
             }
@@ -494,20 +525,25 @@ impl<'p> RunConfiguration<'p> {
         }
     }
 
-    fn write_headers_and_prop<W: std::io::Write>(&self, mut w: W) -> std::io::Result<()> {
+    fn write_headers_and_prop<W: std::io::Write>(&self, mut w: W, sigs: &str) -> std::io::Result<()> {
         use std::io::{copy, Read, Write};
         let propfile = self.forge_in_file("props");
         writeln!(w, "#lang forge")?;
-
-        writeln!(w, "open \"{}.frg\"", self.analysis_result_path().display())?;
-        for include in self.version.1 {
-            writeln!(
-                w,
-                "open \"{}.frg\"",
-                self.forge_source_dir().join(include).display()
+        let ana_path = self.analysis_result_path();
+        use Either::*;
+        for include in [Right(sigs), Left(ana_path)].into_iter().chain(self.version.1.iter().copied().map(Right)) {
+            writeln!(w)?;
+            let path = match include {
+                Right(include) => self.forge_source_dir().join(include).with_extension("frg"),
+                Left(path) => path,
+            };
+            writeln!(w, "// {}", path.display())?;
+            copy(
+                &mut std::fs::File::open(path)?,
+                &mut w
             )?;
         }
-        copy(&mut std::fs::File::open(propfile).unwrap(), &mut w)?;
+        copy(&mut std::fs::File::open(propfile)?, &mut w)?;
         Ok(())
     }
 }
@@ -577,6 +613,7 @@ fn print_results_for_property<W: std::io::Write>(
 fn main() {
     use std::io::Write;
     let args = Box::leak::<'static>(Box::new(Args::parse()));
+    std::env::set_current_dir(&args.directory);
     let property_versions: Vec<_> = if args.property_versions.is_empty() {
         println!("INFO: No specification variants to run given, running all known ones");
         ALL_KNOWN_VARIANTS.to_vec()
@@ -589,7 +626,12 @@ fn main() {
     };
 
     let error_message_versions: Vec<_> = if let Some(v) = args.error_message_versions.as_ref() {
-        v.iter().map(String::as_str).collect()
+        let str_refs = v.iter().map(String::as_str).collect::<Vec<_>>();
+        if let ["none"] = str_refs.as_slice() {
+            vec![]
+        } else {
+            str_refs
+        }
     } else {
         ERR_MSG_VERSIONS.to_vec()
     };
@@ -599,7 +641,9 @@ fn main() {
             .only
             .as_ref()
             .map(|v| v.iter().cloned().collect::<HashSet<Edit>>());
-        move |s: &Edit| as_ref_v.as_ref().map_or(true, |v| v.contains(s))
+        let args_ref = &args;
+        move |s: &Edit|
+            !args_ref.no_edits && as_ref_v.as_ref().map_or(true, |v| v.contains(s))
     };
 
     let num_versions = property_versions.len();
@@ -625,7 +669,7 @@ fn main() {
                         .filter(|e| is_selected(e))
                 })
                 .collect::<Vec<_>>();
-            (!new_edits.is_empty()).then_some((property, new_edits))
+            (args.no_edits || !new_edits.is_empty()).then_some((property, new_edits))
         })
         .collect();
 
@@ -635,9 +679,8 @@ fn main() {
             |(_, inner)| inner.len() + 1, // default (no edits)
         )
         .sum::<usize>()
-        * (2 // compile + prop check
-            * num_versions
-            * error_message_versions.len());
+        * (2 * num_versions // compile + prop check
+           + num_versions * error_message_versions.len());
 
     let ref mut progress = ProgressBar::new(num_configurations as u64).with_style(
         indicatif::ProgressStyle::default_bar()
@@ -694,6 +737,7 @@ fn main() {
         })
         .collect::<Vec<_>>();
     writeln!(w, "Error message results:").unwrap();
+
     for type_results in check_runs {
         for (edit, edit_results) in type_results {
             for (config, result) in edit_results {

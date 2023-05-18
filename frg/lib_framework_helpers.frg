@@ -1,5 +1,5 @@
-fun labeled_objects_inc_fp[c: Ctrl, lbls : set Label, labels_set: set Object->Label] : set Object {
-    (fp_ann.lbls).c + labels_set.lbls
+fun labeled_objects_inc_fp[lbls : set Label, labels_set: set Object->Label] : set Object {
+    labels_set.lbls
 }
 
 fun all_scopes[f: Sink, c: Ctrl, flow_set: set Src->CallArgument, labels_set: set Object->Label] : set Object {
@@ -7,7 +7,7 @@ fun all_scopes[f: Sink, c: Ctrl, flow_set: set Src->CallArgument, labels_set: se
 	let direct = labeled_objects[arguments[call_site], scopes, labels_set] |
     {some direct => direct
     else {f = Return =>
-        (fp_ann.request_generated).c
+        labeled_objects[fp_fun_rel.c, request_generated, labels_set]
         else
         { scope : labeled_objects[CallArgument, scopes, labels_set] |
             flows_to[c, scope.arg_call_site, f, flow_set]
@@ -17,7 +17,7 @@ fun all_scopes[f: Sink, c: Ctrl, flow_set: set Src->CallArgument, labels_set: se
 }
 
 fun safe_sources[c: Ctrl, flow_set: set Src->CallArgument, labels_set: set Object->Label] : set Src {
-    labeled_objects_inc_fp[c,request_generated, labels_set] // all request_generated
+    labeled_objects_inc_fp[request_generated, labels_set] // all request_generated
 	+ types.(labeled_objects[Type, server_state, labels_set]) // all server_state
 	+ labels_set.(from_storage + safe_source) // all from_storage + safe_source
 }

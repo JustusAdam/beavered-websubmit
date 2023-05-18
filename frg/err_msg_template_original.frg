@@ -4,8 +4,8 @@ pred find_erroneous_my_pred_int[ef: set Src->Sink] {
     let c_flow = flow_for_ctrl[c, flow] |
     {
 		(ef in c_flow)
-        (not predicate[c_flow])
-        (predicate[(c_flow - ef)]) 
+        (not property[c_flow, labels])
+        (property[(c_flow - ef), labels]) 
     }
 }
 
