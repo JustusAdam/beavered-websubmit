@@ -94,7 +94,7 @@ impl Args {
     }
 }
 
-#[derive(Clone, Copy, Eq, PartialEq, Hash)]
+#[derive(Clone, Copy, Eq, PartialEq, Hash, PartialOrd, Ord)]
 enum Property {
     Deletion,
     Storage,
@@ -124,7 +124,7 @@ impl FromStr for Property {
     }
 }
 
-#[derive(Clone, Copy, Eq, PartialEq, Hash)]
+#[derive(Clone, Copy, Eq, PartialEq, Hash, PartialOrd, Ord)]
 enum Severity {
     Benign,
     Bug,
@@ -132,10 +132,17 @@ enum Severity {
 }
 
 impl Severity {
-    fn expected_result(self) -> RunResult {
+    fn expected_result(self, result: &RunResult) -> bool {
         match self {
-            Severity::Benign => RunResult::Success,
-            Severity::Bug | Severity::Intentional => RunResult::CheckError,
+            Severity::Benign => matches!(result, RunResult::Success(_)),
+            Severity::Bug | Severity::Intentional => matches!(result, RunResult::CheckError(_)),
+        }
+    }
+
+    fn expected_emoji(&self) -> &'static str {
+        match self {
+            Severity::Benign => "✅",
+            _ => "❌",
         }
     }
 }
@@ -163,7 +170,7 @@ impl FromStr for Severity {
     }
 }
 
-#[derive(Clone, Eq, PartialEq, Hash, Copy)]
+#[derive(Clone, Eq, PartialEq, Hash, Copy, PartialOrd, Ord)]
 struct Edit {
     property: Property,
     articulation_point: usize,
@@ -206,46 +213,41 @@ impl Display for Edit {
     }
 }
 
+use std::time::Duration;
+
 #[derive(Clone, Copy)]
 enum RunResult {
-    Success,
+    Success(Duration),
     CompilationError,
-    CheckError,
+    CheckError(Duration),
 }
 
-impl From<bool> for RunResult {
-    fn from(b: bool) -> Self {
-        if b {
-            RunResult::Success
-        } else {
-            RunResult::CheckError
-        }
-    }
-}
 
 impl std::fmt::Display for RunResult {
     fn fmt(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
         use std::fmt::Alignment;
         let width = formatter.width().unwrap_or(2);
+        let selfstr = match self {
+            RunResult::Success(dur) => format!("✅ ({})", humantime::format_duration(*dur)),
+            RunResult::CompilationError => "️🚧".to_string(),
+            RunResult::CheckError(dur) => format!("❌ ({})", humantime::format_duration(*dur)),
+        };
+        let selfwidth = selfstr.len();
         let (before, after) = match formatter.align() {
-            None => (0, width - 2),
-            _ if width < 2 => (0, 0),
-            Some(Alignment::Left) => (0, width - 2),
-            Some(Alignment::Right) => (width - 2, 0),
+            None => (0, width - selfwidth),
+            _ if width < selfwidth => (0, 0),
+            Some(Alignment::Left) => (0, width - selfwidth),
+            Some(Alignment::Right) => (width - selfwidth, 0),
             Some(Alignment::Center) => {
-                let left = (width - 2) / 2;
-                (left, width - 2 - left)
+                let left = (width - selfwidth) / 2;
+                (left, width - selfwidth - left)
             }
         };
         let fill_chr = formatter.fill();
         for _ in 0..before {
             formatter.write_char(fill_chr)?;
         }
-        match self {
-            RunResult::Success => formatter.write_str("✅"),
-            RunResult::CompilationError => formatter.write_str("️🚧"),
-            RunResult::CheckError => formatter.write_str("❌"),
-        }?;
+        formatter.write_str(&selfstr)?;
         for _ in 0..after {
             formatter.write_char(fill_chr)?;
         }
@@ -422,6 +424,7 @@ impl RunConfiguration {
     }
 
     fn run_edit(&self) -> anyhow::Result<RunResult> {
+        let now = std::time::Instant::now();
         use std::process::*;
         let check_file_path = self.forge_out_file("check");
         {
@@ -453,9 +456,9 @@ impl RunConfiguration {
         let status = racket_cmd.status()?;
         self.progress.inc(1);
         if status.success() {
-            Ok(RunResult::Success)
+            Ok(RunResult::Success(now.elapsed()))
         } else {
-            Ok(RunResult::CheckError)
+            Ok(RunResult::CheckError(now.elapsed()))
         }
     }
 
@@ -577,12 +580,11 @@ type ResultTable = HashMap<
 fn print_results_for_property<W: std::io::Write>(
     mut w: W,
     num_versions: usize,
-    args: &Args,
     property_versions: &[Version],
     results: &ResultTable,
 ) -> std::io::Result<()> {
     let head_cell_width = 12;
-    let body_cell_width = 8;
+    let body_cell_width = 30;
     for (typ, results) in results.iter() {
         let mut false_negatives = Vec::with_capacity(num_versions);
         false_negatives.resize(num_versions, 0);
@@ -596,24 +598,36 @@ fn print_results_for_property<W: std::io::Write>(
         }
         writeln!(w, "")?;
         write!(w, "-{:-<head_cell_width$}-", "")?;
-        for _ in 0..args.property_versions.len() + 1 {
+        for _ in 0..property_versions.len() + 1 {
             write!(w, "+-{:-<body_cell_width$}-", "")?
         }
         writeln!(w, "")?;
-        for (edit, versions) in results.iter() {
-            let (edit, expected) = edit.map_or(("none".to_string(), RunResult::Success), |e| {
-                (e.to_string(), e.severity.expected_result())
-            });
-            write!(w, " {:head_cell_width$} ", edit)?;
-            write!(w, "| {:^body_cell_width$} ", expected)?;
+        let mut edits = results.iter().collect::<Vec<_>>();
+        edits.sort_by_key(|e| e.0);
+        for (edit, versions) in edits {
+            let edit_str = edit.as_ref().map_or("none".to_string(), Edit::to_string);
+            write!(w, " {:head_cell_width$} ", edit_str)?;
+            write!(w, "| {:^body_cell_width$} ", if let Some(edit) = &edit {
+                edit.severity.expected_emoji()
+            } else {
+                "✅"
+            })?;
             for (i, (_, (_, mutex))) in versions.iter().enumerate() {
                 let result = mutex.try_lock().unwrap();
-                match (&expected, &result.0.unwrap()) {
-                    (RunResult::Success, RunResult::CheckError) => false_positives[i] += 1,
-                    (RunResult::CheckError, RunResult::Success) => false_negatives[i] += 1,
-                    _ => (),
+                let run_result = result.0.unwrap();
+                let was_expected = if let Some(edit) = edit {
+                    edit.severity.expected_result(&run_result)
+                } else {
+                    matches!(run_result, RunResult::Success(_))
                 };
-                write!(w, "| {:^body_cell_width$} ", result.0.unwrap())?;
+                if !was_expected {
+                    match run_result {
+                        RunResult::CheckError(_) => false_positives[i] += 1,
+                        RunResult::Success(_) => false_negatives[i] += 1,
+                        _ => (),
+                    };
+                }
+                write!(w, "| {:^body_cell_width$} ", run_result)?;
             }
             writeln!(w, "")?;
         }
@@ -793,7 +807,6 @@ fn main() {
     print_results_for_property(
         &mut w,
         num_versions,
-        args,
         property_versions.as_slice(),
         &results,
     )
@@ -808,7 +821,7 @@ fn main() {
                 for (config, result_mutex) in e.values() {
                     if matches!(
                         result_mutex.try_lock().unwrap().0.unwrap(),
-                        RunResult::CheckError
+                        RunResult::CheckError(_)
                     ) {
                         for emv in error_message_versions.iter() {
                             send_work.send((config, result_mutex, emv)).unwrap()
@@ -844,7 +857,7 @@ fn main() {
         for edit_results in type_results.values() {
             for (config, result) in edit_results.values() {
                 let results = &result.try_lock().unwrap();
-                if matches!(results.0, Some(RunResult::CheckError)) {
+                if matches!(results.0, Some(RunResult::CheckError(_))) {
                     for (emv, result) in results.1.iter() {
                         progress.suspend(|| {
                             writeln!(w, "{}: {emv} {result}", config.describe()).unwrap();
