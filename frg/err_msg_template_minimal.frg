@@ -1,7 +1,6 @@
 // "Minimal" version
 pred find_erroneous_my_pred_int[ms: set Src->Sink] {
-    some c : Ctrl |
-    let c_flow = flow_for_ctrl[c, flow] {
+    let c_flow = flow {
 		(ms in c_flow)
         (not property[flow, labels])
         (property[(c_flow - ms), labels]) 

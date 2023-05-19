@@ -10,7 +10,7 @@ fun all_scopes[f: Sink, c: Ctrl, flow_set: set Src->CallArgument, labels_set: se
         labeled_objects[fp_fun_rel.c, request_generated, labels_set]
         else
         { scope : labeled_objects[CallArgument, scopes, labels_set] |
-            flows_to[c, scope.arg_call_site, f, flow_set]
+            flows_to[scope.arg_call_site, f, flow_set]
         } 
     }
     }
@@ -23,6 +23,5 @@ fun safe_sources[c: Ctrl, flow_set: set Src->CallArgument, labels_set: set Objec
 }
 
 fun all_recipients[f: CallSite, ctrl: Ctrl, flow_set: set Ctrl->Src->CallArgument, labels_set: set Object->Label] : set Src {
-    let c_flow = flow_for_ctrl[ctrl, flow_set] |
-    *(c_flow + arg_call_site).(all_scopes[arg_call_site.f, ctrl, flow_set, labels])
+    *(flow_set + arg_call_site).(all_scopes[arg_call_site.f, ctrl, flow_set, labels])
 }

@@ -1,17 +1,18 @@
 
 
 pred property[flow_set: set Src->CallArgument, labels_set: set Object->Label] {
-	all c: Ctrl, a : labeled_objects[FormalParameter + Type, sensitive, labels_set], f : labeled_objects[Sink, sink, labels_set] | 
-        (flows_to[c, a, f, flow_set]) 
+	all c: Ctrl |
+    all a : labeled_objects[FormalParameter + Type, sensitive, labels_set], f : labeled_objects[sinks_of[c], sink, labels_set] | 
+        (flows_to[to_source[c, a], f, flow_set]) 
         implies {
-			(some all_scopes[f, c, labels_set]) and 
+			(some all_scopes[f, labels_set]) and 
 			(all o: Object, scope: all_scopes[f, labels_set] | 
-			flows_to[c, o, scope, flow_set]
+			flows_to[to_source[c, o], scope, flow_set]
             implies {
                 (some o & safe_sources[c, flow_set, labels_set]) // either it is safe itself
                 or always_happens_before[c, o, safe_sources[c, flow_set, labels_set], scope, flow_set] // obj must go through something in safe before scope
                 or (some safe : safe_sources[c, flow_set, labels_set] |
-                    flows_to_ctrl[c, safe, o, flow_set]) // safe must have flowed to obj at some point
+                    flows_to_ctrl[to_source[c, safe], o, flow_set]) // safe must have flowed to obj at some point
             })
 		}
 }
