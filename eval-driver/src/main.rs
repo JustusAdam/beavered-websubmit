@@ -31,7 +31,7 @@ type Version<'a> = (&'a str, &'a [&'a str]);
 const ALL_KNOWN_VARIANTS: &[Version] = &[
     ("lib", &["basic_helpers", "lib_framework_helpers"]),
     ("baseline", &["basic_helpers", "framework_helpers"]),
-    ("strict", &["basic_helpers", "framework_helpers"]),
+    ("strict", &["basic_helpers", "strict_framework_helpers"]),
 ];
 
 /// Batch executor for the evaluation of our 2023 HotOS paper.
@@ -64,6 +64,9 @@ struct Args {
 
     #[clap(long, default_value = "1h")]
     err_msg_timeout: humantime::Duration,
+
+    #[clap(long, default_value = "10m")]
+    check_timeout: humantime::Duration,
 
     /// Only run the specified edits. Uses the same format as printing edits,
     /// aka `edit-<property>-<articulation point>-<short edit type>`, e.g. `edit-del-2-a`
@@ -220,6 +223,7 @@ enum RunResult {
     Success(Duration),
     CompilationError,
     CheckError(Duration),
+    Timeout,
 }
 
 
@@ -231,6 +235,7 @@ impl std::fmt::Display for RunResult {
             RunResult::Success(dur) => format!("✅ ({})", humantime::format_duration(*dur)),
             RunResult::CompilationError => "️🚧".to_string(),
             RunResult::CheckError(dur) => format!("❌ ({})", humantime::format_duration(*dur)),
+            RunResult::Timeout => "⏲".to_string(),
         };
         let selfwidth = selfstr.len();
         let (before, after) = match formatter.align() {
@@ -333,6 +338,19 @@ impl std::fmt::Display for ErrMsgResult {
     }
 }
 
+fn with_timeout<R: std::marker::Send + 'static, F: FnOnce() -> R + std::marker::Send + 'static>(timeout: Duration, f: F) -> Option<R> {
+    use std::sync::mpsc::{channel};
+    use std::thread;
+
+    let (send, rcv) = channel();
+
+    std::thread::spawn(move || {
+        send.send(f())
+    });
+
+    rcv.recv_timeout(timeout).ok()
+}
+
 struct RunConfiguration {
     typ: Property,
     version: Version<'static>,
@@ -355,6 +373,9 @@ impl RunConfiguration {
     }
     fn err_msg_timeout(&self) -> std::time::Duration {
         self.args.err_msg_timeout.into()
+    }
+    fn check_timeout(&self) -> std::time::Duration {
+        self.args.check_timeout.into()
     }
     fn forge_source_dir(&self) -> &std::path::Path {
         self.args.forge_source_dir.as_path()
@@ -453,13 +474,14 @@ impl RunConfiguration {
             self.progress
                 .suspend(|| println!("Executing check command: {:?}", racket_cmd));
         }
-        let status = racket_cmd.status()?;
-        self.progress.inc(1);
-        if status.success() {
-            Ok(RunResult::Success(now.elapsed()))
-        } else {
-            Ok(RunResult::CheckError(now.elapsed()))
-        }
+        with_timeout(self.check_timeout(), move || racket_cmd.status()).map_or(Ok(RunResult::Timeout), |status| {
+            self.progress.inc(1);
+            if status?.success() {
+                Ok(RunResult::Success(now.elapsed()))
+            } else {
+                Ok(RunResult::CheckError(now.elapsed()))
+            }
+        })
     }
 
     fn run_error_msg(&self, template: &str) -> anyhow::Result<ErrMsgResult> {
@@ -495,44 +517,36 @@ impl RunConfiguration {
         let time = std::time::Instant::now();
         let child = racket_cmd.spawn()?;
 
-        use std::sync::mpsc::{channel, RecvTimeoutError};
-        use std::thread;
-
-        let (send, rcv) = channel();
-
-        std::thread::spawn(move || {
-            let cmd_result = child.wait_with_output();
-            send.send(cmd_result)
+        let output = with_timeout(self.err_msg_timeout(), || {
+            child.wait_with_output()
         });
 
-        match rcv.recv_timeout(self.err_msg_timeout()) {
-            Ok(output) => {
-                let output = output?;
-                if output.status.success() {
-                    Ok(ErrMsgResult::Sat(time.elapsed()))
-                } else {
-                    let forge_output_str = String::from_utf8_lossy(&output.stdout);
-                    let counting_tesult = read_and_count_forge_unsat_instance(&forge_output_str);
-                    if counting_tesult.is_err() {
-                        use std::io::Write;
-                        write!(
-                            &mut std::fs::OpenOptions::new()
-                                .create(true)
-                                .truncate(true)
-                                .write(true)
-                                .open(self.args.output_directory.join("err_msg_ouput.txt"))?,
-                            "{}",
-                            forge_output_str,
-                        )?;
-                    }
-                    Ok(ErrMsgResult::Success(
-                        time.elapsed(),
-                        counting_tesult.map_err(StringErr)?,
-                    ))
+        if let Some(output) = output {
+            let output = output?;
+            if output.status.success() {
+                Ok(ErrMsgResult::Sat(time.elapsed()))
+            } else {
+                let forge_output_str = String::from_utf8_lossy(&output.stdout);
+                let counting_tesult = read_and_count_forge_unsat_instance(&forge_output_str);
+                if counting_tesult.is_err() {
+                    use std::io::Write;
+                    write!(
+                        &mut std::fs::OpenOptions::new()
+                            .create(true)
+                            .truncate(true)
+                            .write(true)
+                            .open(self.args.output_directory.join("err_msg_ouput.txt"))?,
+                        "{}",
+                        forge_output_str,
+                    )?;
                 }
+                Ok(ErrMsgResult::Success(
+                    time.elapsed(),
+                    counting_tesult.map_err(StringErr)?,
+                ))
             }
-            Err(RecvTimeoutError::Disconnected) => unreachable!(),
-            Err(RecvTimeoutError::Timeout) => Ok(ErrMsgResult::Timeout),
+        } else {
+             Ok(ErrMsgResult::Timeout)
         }
     }
 
