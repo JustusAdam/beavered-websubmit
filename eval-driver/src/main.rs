@@ -29,9 +29,9 @@ const ERR_MSG_VERSIONS: &[&str] = &["original", "optimized", "minimal"];
 type Version<'a> = (&'a str, &'a [&'a str]);
 
 const ALL_KNOWN_VARIANTS: &[Version] = &[
-    ("lib", &["basic_helpers", "lib_framework_helpers"]),
-    ("baseline", &["basic_helpers", "framework_helpers"]),
-    ("strict", &["basic_helpers", "strict_framework_helpers"]),
+    ("lib", &["dfpp-props/basic_helpers", "lib_framework_helpers"]),
+    ("baseline", &["dfpp-props/basic_helpers", "framework_helpers"]),
+    ("strict", &["dfpp-props/basic_helpers", "strict_framework_helpers"]),
 ];
 
 /// Batch executor for the evaluation of our 2023 HotOS paper.
@@ -495,14 +495,14 @@ impl RunConfiguration {
                 .create(true)
                 .open(&frg_file)?;
             let sig_file = if template == "optimized" {
-                "err_msg_optimized_sigs"
+                "dfpp-props/err_msg_optimized_sigs"
             } else {
-                "err_msg_sigs"
+                "dfpp-props/err_msg_sigs"
             };
             self.write_headers_and_prop(&mut w, sig_file)?;
             let template_file = self
                 .forge_source_dir()
-                .join(&format!("err_msg_template_{template}.frg"));
+                .join(&format!("dfpp-props/err_msg_template_{template}.frg"));
             copy(&mut std::fs::File::open(template_file)?, &mut w)?;
         }
         let mut racket_cmd = Command::new("racket");
