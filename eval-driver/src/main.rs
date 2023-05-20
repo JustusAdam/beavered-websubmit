@@ -455,7 +455,7 @@ impl RunConfiguration {
                 .write(true)
                 .create(true)
                 .open(&check_file_path)?;
-            self.write_headers_and_prop(&mut w, "sigs")?;
+            self.write_headers_and_prop(&mut w, "dfpp-props/sigs")?;
             writeln!(
                 w,
                 "test expect {{ {}_{}: {{ property[flow, labels] }} for Flows is theorem }}",
