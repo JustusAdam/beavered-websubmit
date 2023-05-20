@@ -29,9 +29,9 @@ const ERR_MSG_VERSIONS: &[&str] = &["original", "optimized", "minimal"];
 type Version<'a> = (&'a str, &'a [&'a str]);
 
 const ALL_KNOWN_VARIANTS: &[Version] = &[
-    ("lib", &["dfpp-props/basic_helpers", "lib_framework_helpers"]),
-    ("baseline", &["dfpp-props/basic_helpers", "framework_helpers"]),
-    ("strict", &["dfpp-props/basic_helpers", "strict_framework_helpers"]),
+    ("lib", &["dfpp-props/basic-helpers", "lib_framework_helpers"]),
+    ("baseline", &["dfpp-props/basic-helpers", "framework_helpers"]),
+    ("strict", &["dfpp-props/basic-helpers", "strict_framework_helpers"]),
 ];
 
 /// Batch executor for the evaluation of our 2023 HotOS paper.
@@ -42,7 +42,7 @@ const ALL_KNOWN_VARIANTS: &[Version] = &[
 struct Args {
     /// Print complete error messages for called programs on failure (implies
     /// `--verbose-commands`)
-    #[clap(long)]
+    #[clap(long, default_value = "true")]
     verbose: bool,
 
     /// Print the shell commands we are running

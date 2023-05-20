@@ -56,8 +56,8 @@ impl MySqlBackend {
         })
     }
 
-    #[dfpp::label(source)]
-    #[cfg_attr(feature = "v-ann-lib", dfpp::label(from_storage, return))]
+    #[dfpp::marker(source)]
+    #[cfg_attr(feature = "v-ann-lib", dfpp::marker(from_storage, return))]
     pub fn prep_exec(&mut self, sql: &str, params: Vec<Value>) -> Vec<Vec<Value>> {
         if !self.prep_stmts.contains_key(sql) {
             let stmt = self
@@ -94,19 +94,19 @@ impl MySqlBackend {
             .expect(&format!("failed to insert into {}, query {}!", table, q));
     }
 
-    #[dfpp::label{ stores, arguments = [2] }]
-    #[dfpp::label{ scopes, arguments = [2] }]
+    #[dfpp::marker{ stores, arguments = [2] }]
+    #[dfpp::marker{ scopes, arguments = [2] }]
     pub fn insert(&mut self, table: &str, vals: Vec<Value>) {
         self.do_insert(table, vals, false);
     }
 
-    #[cfg_attr(not(feature = "v-ann-strict"), dfpp::label{ scopes, arguments = [2] })]
-    #[dfpp::label{ stores, arguments = [2] }]
+    #[cfg_attr(not(feature = "v-ann-strict"), dfpp::marker{ scopes, arguments = [2] })]
+    #[dfpp::marker{ stores, arguments = [2] }]
     pub fn replace(&mut self, table: &str, vals: Vec<Value>) {
         self.do_insert(table, vals, true);
     }
 
-    #[dfpp::label(deletes, arguments = [2])]
+    #[dfpp::marker(deletes, arguments = [2])]
     pub fn delete(&mut self, table: &str, criteria: &[(&str, Value)]) {
         let (where_parts, vals): (Vec<_>, Vec<_>) = criteria.iter().map(|(id, v)| (format!("{id} = ?"), v)).unzip();
         let where_ = where_parts.join(" AND ");

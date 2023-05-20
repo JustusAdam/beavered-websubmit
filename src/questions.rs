@@ -15,14 +15,14 @@ use std::collections::hash_map::DefaultHasher;
 use std::hash::Hash;
 use std::sync::{Arc, Mutex};
 
-#[cfg_attr(not(feature = "v-ann-lib"), dfpp::label(sensitive))]
+#[cfg_attr(not(feature = "v-ann-lib"), dfpp::marker(sensitive))]
 #[cfg_attr(not(feature = "v-ann-lib"), dfpp::output_types(crate::questions::LectureAnswer))]
 #[derive(Debug, FromForm)]
 pub(crate) struct LectureQuestionSubmission {
     answers: HashMap<u64, String>,
 }
 
-#[cfg_attr(not(feature = "v-ann-lib"), dfpp::label(sensitive))]
+#[cfg_attr(not(feature = "v-ann-lib"), dfpp::marker(sensitive))]
 #[derive(Serialize)]
 pub(crate) struct LectureQuestion {
     pub id: u64,
@@ -39,7 +39,7 @@ pub(crate) struct LectureQuestionsContext {
     pub parent: &'static str,
 }
 
-#[cfg_attr(not(feature = "v-ann-lib"), dfpp::label(sensitive))]
+#[cfg_attr(not(feature = "v-ann-lib"), dfpp::marker(sensitive))]
 #[derive(Serialize)]
 struct LectureAnswer {
     id: u64,
@@ -117,7 +117,7 @@ pub enum Either<A,B> {
     Right(B),
 }
 
-#[dfpp::label(source)]
+#[dfpp::marker(source)]
 fn get_one_answer(bg: &mut MySqlBackend, user: &str, key: u64) -> LectureAnswer {
     let res = bg.prep_exec("SELECT * FROM answers WHERE email = ? AND num = ?", vec![user.into(), key.into()]);
     res
@@ -137,7 +137,7 @@ fn get_one_answer(bg: &mut MySqlBackend, user: &str, key: u64) -> LectureAnswer 
         .unwrap()
 }
 
-#[cfg_attr(not(feature = "v-ann-lib"), dfpp::label(source))]
+#[cfg_attr(not(feature = "v-ann-lib"), dfpp::marker(source))]
 fn get_answers(bg: &mut MySqlBackend, key: Either<u64, &str>) -> Vec<LectureAnswer> {
     let (where_, key) = match key {
         Either::Left(lec) => ("lec", lec.into()),
@@ -162,7 +162,7 @@ fn get_answers(bg: &mut MySqlBackend, key: Either<u64, &str>) -> Vec<LectureAnsw
 
 #[cfg_attr(feature = "edit-dis-3-a", dfpp::analyze)]
 #[cfg_attr(feature = "edit-dis-3-c", dfpp::analyze)]
-#[cfg_attr(feature = "v-ann-lib", dfpp::label(request_generated, arguments = [0]))]
+#[cfg_attr(feature = "v-ann-lib", dfpp::marker(request_generated, arguments = [0]))]
 #[get("/<num>")]
 pub(crate) fn answers(
     _admin: Admin,
@@ -248,14 +248,14 @@ pub(crate) fn questions(
 }
 
 impl LectureAnswer {
-    #[cfg_attr(not(feature = "v-ann-lib"), dfpp::label(deletes, arguments = [0]))]
+    #[cfg_attr(not(feature = "v-ann-lib"), dfpp::marker(deletes, arguments = [0]))]
     fn delete_answer(self, bg: &mut MySqlBackend) {
         bg.delete("answers", &[("lec", self.lec.into()), ("q", self.id.into()), ("email", self.user.into())]);
     }
 }
 
 impl ApiKey {
-    #[cfg_attr(not(feature = "v-ann-lib"), dfpp::label(deletes, arguments = [0]))]
+    #[cfg_attr(not(feature = "v-ann-lib"), dfpp::marker(deletes, arguments = [0]))]
     fn delete_apikey(self, bg: &mut MySqlBackend) {
         bg.delete("users", &[("email", self.user.into())])
     }
@@ -337,7 +337,7 @@ pub(crate) fn forget_user(apikey: ApiKey, backend: &State<Arc<Mutex<MySqlBackend
     Redirect::to("/")
 }
 
-#[cfg_attr(not(feature = "v-ann-lib"), dfpp::label(safe_source_with_bless, return))]
+#[cfg_attr(not(feature = "v-ann-lib"), dfpp::marker(safe_source_with_bless, return))]
 fn get_presenters(bg: &mut MySqlBackend, num: u8) -> Vec<String> {
     let mut presenter_emails = vec![];
     let presenters_res = bg.prep_exec("SELECT * FROM presenters WHERE lec = ?;", vec![num.into()]);
@@ -348,27 +348,27 @@ fn get_presenters(bg: &mut MySqlBackend, num: u8) -> Vec<String> {
     presenter_emails
 }
 
-#[cfg_attr(not(feature = "v-ann-lib"), dfpp::label(safe_source_with_bless, return))]
+#[cfg_attr(not(feature = "v-ann-lib"), dfpp::marker(safe_source_with_bless, return))]
 fn get_all_presenters(bg: &mut MySqlBackend) -> Vec<Vec<Value>> {
     bg.prep_exec("SELECT * FROM presenters;", vec![])
 }
 
-#[cfg_attr(not(feature = "v-ann-lib"), dfpp::label(bless_safe_source, return))]
+#[cfg_attr(not(feature = "v-ann-lib"), dfpp::marker(bless_safe_source, return))]
 fn get_num(num: u8) -> u8 {
 	num
 }
 
-#[cfg_attr(not(feature = "v-ann-lib"), dfpp::label(safe_source_with_bless, return))]
+#[cfg_attr(not(feature = "v-ann-lib"), dfpp::marker(safe_source_with_bless, return))]
 fn get_staff(config: &State<Config>) -> Vec<String> {
 	config.staff.clone()
 }
 
-#[cfg_attr(not(feature = "v-ann-lib"), dfpp::label(safe_source, return))]
+#[cfg_attr(not(feature = "v-ann-lib"), dfpp::marker(safe_source, return))]
 fn get_admins(config: &State<Config>) -> Vec<String> {
 	config.admins.clone()
 }
 
-#[cfg_attr(not(feature = "v-ann-lib"), dfpp::label(scopes, return))]
+#[cfg_attr(not(feature = "v-ann-lib"), dfpp::marker(scopes, return))]
 fn scopes_argument<T>(field: T) -> T {
     field
 }
@@ -384,7 +384,7 @@ pub(crate) fn questions_submit(
     questions_submit_internal(apikey, num, data, backend, config)
 }
 #[dfpp::analyze]
-#[cfg_attr(feature = "v-ann-lib", dfpp::label(request_generated, arguments = [0]))]
+#[cfg_attr(feature = "v-ann-lib", dfpp::marker(request_generated, arguments = [0]))]
 pub(crate) fn questions_submit_internal(
     apikey: ApiKey,
     num: u8,
