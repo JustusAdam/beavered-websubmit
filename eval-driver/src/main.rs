@@ -631,8 +631,9 @@ fn print_results_for_property<W: std::io::Write>(
             } else {
                 "✅"
             })?;
-            for (i, (_, (_, mutex))) in versions.iter().enumerate() {
-                let result = mutex;
+			for (i, (version, _)) in property_versions.iter().enumerate() {
+				let (_, mutex) = versions.get(version).unwrap();
+				let result = mutex;
                 let run_result = result.0.unwrap();
                 let was_expected = if let Some(edit) = edit {
                     edit.severity.expected_result(&run_result)
@@ -647,7 +648,24 @@ fn print_results_for_property<W: std::io::Write>(
                     };
                 }
                 write!(w, "| {:^body_cell_width$} ", run_result)?;
-            }
+			}
+            // for (i, (_, (_, mutex))) in versions.iter().enumerate() {
+            //     let result = mutex;
+            //     let run_result = result.0.unwrap();
+            //     let was_expected = if let Some(edit) = edit {
+            //         edit.severity.expected_result(&run_result)
+            //     } else {
+            //         matches!(run_result, RunResult::Success(_))
+            //     };
+            //     if !was_expected {
+            //         match run_result {
+            //             RunResult::CheckError(_) => false_positives[i] += 1,
+            //             RunResult::Success(_) => false_negatives[i] += 1,
+            //             _ => (),
+            //         };
+            //     }
+            //     write!(w, "| {:^body_cell_width$} ", run_result)?;
+            // }
             writeln!(w, "")?;
         }
         write!(w, "-{:-<head_cell_width$}-", "")?;
