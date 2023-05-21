@@ -338,17 +338,20 @@ impl std::fmt::Display for ErrMsgResult {
     }
 }
 
-fn with_timeout<R: std::marker::Send + 'static, F: FnOnce() -> R + std::marker::Send + 'static>(timeout: Duration, f: F) -> Option<R> {
-    use std::sync::mpsc::{channel};
-    use std::thread;
-
-    let (send, rcv) = channel();
-
-    std::thread::spawn(move || {
-        send.send(f())
-    });
-
-    rcv.recv_timeout(timeout).ok()
+fn wait_with_timeout(timeout: Duration, proc: &mut std::process::Child) -> std::io::Result<Option<std::process::ExitStatus>> {
+    let mut status;
+    let time = std::time::Instant::now();
+    while {
+        status = proc.try_wait()?;
+        status.is_none()
+    } {
+        if  time.elapsed() > timeout {
+            proc.kill()?;
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_secs(1));
+    }
+    Ok(status)
 }
 
 struct RunConfiguration {
@@ -474,9 +477,10 @@ impl RunConfiguration {
             self.progress
                 .suspend(|| println!("Executing check command: {:?}", racket_cmd));
         }
-        with_timeout(self.check_timeout(), move || racket_cmd.status()).map_or(Ok(RunResult::Timeout), |status| {
-            self.progress.inc(1);
-            if status?.success() {
+        let status = wait_with_timeout(self.check_timeout(), &mut racket_cmd.spawn()?)?;
+        self.progress.inc(1);
+        status.map_or(Ok(RunResult::Timeout), |status| {
+            if status.success() {
                 Ok(RunResult::Success(now.elapsed()))
             } else {
                 Ok(RunResult::CheckError(now.elapsed()))
@@ -515,15 +519,13 @@ impl RunConfiguration {
                 .suspend(|| println!("Executing check command: {:?}", racket_cmd));
         }
         let time = std::time::Instant::now();
-        let child = racket_cmd.spawn()?;
+        let mut child = racket_cmd.spawn()?;
 
-        let output = with_timeout(self.err_msg_timeout(), || {
-            child.wait_with_output()
-        });
+        let status = wait_with_timeout(self.err_msg_timeout(), &mut child)?;
 
-        if let Some(output) = output {
-            let output = output?;
-            if output.status.success() {
+        if let Some(status) = status {
+            let output = child.wait_with_output()?;
+            if status.success() {
                 Ok(ErrMsgResult::Sat(time.elapsed()))
             } else {
                 let forge_output_str = String::from_utf8_lossy(&output.stdout);
@@ -804,7 +806,6 @@ fn main() {
 
         for _ in 0..args.parallelism {
             let my_receive = receive_work.clone();
-            let my_results_ref = &results;
             std::thread::Builder::new()
                 .spawn_scoped(scope, move || {
                     while let Some((config, mutex)) =
