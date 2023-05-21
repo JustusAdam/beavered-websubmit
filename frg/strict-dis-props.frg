@@ -1,19 +1,18 @@
 
 
-pred property[flow_set: set Src->Sink, labels_set: set Object->Label] {
-	all c: Ctrl, a : labeled_objects[FormalParameter + Type, sensitive, labels_set]|
-    all f : labeled_objects[sinks_of[c], sink, labels_set] | 
-        (flows_to[to_source[c, a], f, flow_set]) 
+pred property[flow: set Src->CallArgument, labels: set Object->Label] {
+	all c: Ctrl |
+    all a : to_source[c, labeled_objects[FormalParameter + Type, sensitive, labels]], f : labeled_objects[sinks_of[c], sink, labels] | 
+        (flows_to[a, f, flow]) 
         implies {
-			(some all_scopes[f.arg_call_site, c, flow_set, labels_set]) and 
-			(all o: sources_of[c] + sinks_of[c], scope: all_scopes[f.arg_call_site, c, flow_set, labels_set] | 
-			flows_to_ctrl[o, scope, flow_set]
+			(some direct_scopes[f, labels]) and 
+			(all o: sources_of[c], scope: direct_scopes[f, labels] | 
+			flows_to[o, scope, flow]
             implies {
-                (some o & safe_sources[c, flow_set, labels_set]) // either it is safe itself
-                or always_happens_before[c, o, safe_sources[c, flow_set, labels_set], scope, flow_set] // obj must go through something in safe before scope
-                or (some safe : safe_sources[c, flow_set, labels_set] |
-                    flows_to_ctrl[to_source[c, safe], o, flow_set]) // safe must have flowed to obj at some point
+                (some o & safe_sources[c, flow, labels]) // either it is safe itself
+                or always_happens_before[c, o, safe_sources[c, flow, labels], scope, flow] // obj must go through something in safe before scope. MUST PASS IN ALL SAFE SOURCES HERE!!!
+                or (some safe : to_source[c, safe_sources[c, flow, labels]], o_sink : to_sink[c, o] |
+                    flows_to_ctrl[safe, o_sink, flow]) // safe must have flowed to obj at some point
             })
 		}
 }
-
