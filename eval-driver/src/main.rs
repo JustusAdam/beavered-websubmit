@@ -528,7 +528,7 @@ impl RunConfiguration {
             if status.success() {
                 Ok(ErrMsgResult::Sat(time.elapsed()))
             } else {
-                let forge_output_str = String::from_utf8_lossy(&output.stdout);
+                let forge_output_str = String::from_utf8_lossy(&output.stderr);
                 let counting_tesult = read_and_count_forge_unsat_instance(&forge_output_str);
                 if counting_tesult.is_err() {
                     use std::io::Write;
