@@ -87,7 +87,7 @@ struct Args {
     #[clap(long)]
     no_edits: bool,
 
-    #[clap(long, default_value_t = 4)]
+    #[clap(long, default_value_t = 1)]
     parallelism: usize,
 }
 
