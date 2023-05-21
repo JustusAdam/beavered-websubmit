@@ -1,3 +1,5 @@
+
+
 pred property[flow_set: set Src->Sink, labels_set: set Object->Label] {
 	all c: Ctrl, a : labeled_objects[FormalParameter + Type, sensitive, labels_set]|
     all f : labeled_objects[sinks_of[c], sink, labels_set] | 

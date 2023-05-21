@@ -1,3 +1,4 @@
+
 fun labeled_objects_inc_fp[lbls : set Label, labels_set: set Object->Label] : set Object {
     labels_set.lbls
 }

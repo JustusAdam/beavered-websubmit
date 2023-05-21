@@ -1,3 +1,5 @@
+
+
 // Asserts that there exists one controller which calls a deletion
 // function on every value (or an equivalent type) that is ever stored.
 pred property[flow_set: set CallArgument, labels_set: set Object->Label] {

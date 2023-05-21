@@ -464,9 +464,6 @@ pub(crate) fn questions_submit_internal(
 	#[cfg(feature = "edit-dis-3-b")]
 	println!("{}", answer_log);
 
-	// TODO: remove. This is here just because forge complains about labels bound inconsistencies when _print is not called for various features.
-	println!("log generated");
-
     if config.send_emails {
 		let mut recipients = vec![];
 		cfg_if! {
@@ -495,7 +492,6 @@ pub(crate) fn questions_submit_internal(
         }
         recipients.append(&mut presenter_emails);
 
-        //println!("");
         email::my_send(
             bg.log.clone(),
             apikey.user.clone(),

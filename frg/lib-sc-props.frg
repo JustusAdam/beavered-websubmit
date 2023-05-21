@@ -1,3 +1,5 @@
+
+
 pred some_authorized[principal: Src, c: Ctrl, labels_set: set Object->Label] {
     some principal & labeled_objects_inc_fp[request_generated, labels]
 }
