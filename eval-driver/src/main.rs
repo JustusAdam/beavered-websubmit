@@ -42,7 +42,7 @@ const ALL_KNOWN_VARIANTS: &[Version] = &[
 struct Args {
     /// Print complete error messages for called programs on failure (implies
     /// `--verbose-commands`)
-    #[clap(long, default_value = "true")]
+    #[clap(long)]
     verbose: bool,
 
     /// Print the shell commands we are running
