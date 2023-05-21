@@ -511,8 +511,8 @@ impl RunConfiguration {
         }
         let forge_output_path = self.outpath().join("err-msg-result-{template}.txt");
         let mut racket_cmd = Command::new("racket");
-        racket_cmd.arg(&frg_file).stdin(Stdio::null());
-        let forge_output_file = std::fs::OpenOptions::new().truncate(true).write(true).open(&forge_output_path)?;
+        racket_cmd.arg(&frg_file).stdin(Stdio::null()).stderr(Stdio::null());
+        let forge_output_file = std::fs::OpenOptions::new().create(true).truncate(true).write(true).open(&forge_output_path)?;
         racket_cmd.stdout(forge_output_file);
         if self.verbose_commands() {
             self.progress
