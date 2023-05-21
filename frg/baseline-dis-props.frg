@@ -2,11 +2,11 @@
 
 pred property[flow: set Src->CallArgument, labels: set Object->Label] {
 	all c: Ctrl |
-    all a : labeled_objects[FormalParameter + Type, sensitive, labels], f : labeled_objects[sinks_of[c], sink, labels] | 
-        (flows_to[to_source[c, a], f, flow]) 
+    all a : to_source[c, labeled_objects[FormalParameter + Type, sensitive, labels]], f : labeled_objects[sinks_of[c], sink, labels] | 
+        (flows_to[a, f, flow]) 
         implies {
 			(some all_scopes[f, labels]) and 
-			(all o: Src, scope: all_scopes[f, labels] | 
+			(all o: sources_of[c], scope: all_scopes[f, labels] | 
 			flows_to[o, scope, flow]
             implies {
                 (some o & safe_sources[c, flow, labels]) // either it is safe itself
