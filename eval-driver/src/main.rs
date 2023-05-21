@@ -338,17 +338,20 @@ impl std::fmt::Display for ErrMsgResult {
     }
 }
 
-fn with_timeout<R: std::marker::Send + 'static, F: FnOnce() -> R + std::marker::Send + 'static>(timeout: Duration, f: F) -> Option<R> {
-    use std::sync::mpsc::{channel};
-    use std::thread;
-
-    let (send, rcv) = channel();
-
-    std::thread::spawn(move || {
-        send.send(f())
-    });
-
-    rcv.recv_timeout(timeout).ok()
+fn wait_with_timeout(timeout: Duration, proc: &mut std::process::Child) -> std::io::Result<Option<std::process::ExitStatus>> {
+    let mut status;
+    let time = std::time::Instant::now();
+    while {
+        status = proc.try_wait()?;
+        status.is_none()
+    } {
+        if  time.elapsed() > timeout {
+            proc.kill()?;
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_secs(1));
+    }
+    Ok(status)
 }
 
 struct RunConfiguration {
@@ -474,9 +477,10 @@ impl RunConfiguration {
             self.progress
                 .suspend(|| println!("Executing check command: {:?}", racket_cmd));
         }
-        with_timeout(self.check_timeout(), move || racket_cmd.status()).map_or(Ok(RunResult::Timeout), |status| {
-            self.progress.inc(1);
-            if status?.success() {
+        let status = wait_with_timeout(self.check_timeout(), &mut racket_cmd.spawn()?)?;
+        self.progress.inc(1);
+        status.map_or(Ok(RunResult::Timeout), |status| {
+            if status.success() {
                 Ok(RunResult::Success(now.elapsed()))
             } else {
                 Ok(RunResult::CheckError(now.elapsed()))
@@ -515,15 +519,13 @@ impl RunConfiguration {
                 .suspend(|| println!("Executing check command: {:?}", racket_cmd));
         }
         let time = std::time::Instant::now();
-        let child = racket_cmd.spawn()?;
+        let mut child = racket_cmd.spawn()?;
 
-        let output = with_timeout(self.err_msg_timeout(), || {
-            child.wait_with_output()
-        });
+        let status = wait_with_timeout(self.err_msg_timeout(), &mut child)?;
 
-        if let Some(output) = output {
-            let output = output?;
-            if output.status.success() {
+        if let Some(status) = status {
+            let output = child.wait_with_output()?;
+            if status.success() {
                 Ok(ErrMsgResult::Sat(time.elapsed()))
             } else {
                 let forge_output_str = String::from_utf8_lossy(&output.stdout);
@@ -577,6 +579,7 @@ impl RunConfiguration {
     }
 }
 
+
 type ResultTable = HashMap<
     Property,
     HashMap<
@@ -585,7 +588,7 @@ type ResultTable = HashMap<
             &'static str,
             (
                 RunConfiguration,
-                Mutex<(Option<RunResult>, Vec<(&'static str, ErrMsgResult)>)>,
+                (Option<RunResult>, Vec<(&'static str, ErrMsgResult)>),
             ),
         >,
     >,
@@ -627,7 +630,7 @@ fn print_results_for_property<W: std::io::Write>(
                 "✅"
             })?;
             for (i, (_, (_, mutex))) in versions.iter().enumerate() {
-                let result = mutex.try_lock().unwrap();
+                let result = mutex;
                 let run_result = result.0.unwrap();
                 let was_expected = if let Some(edit) = edit {
                     edit.severity.expected_result(&run_result)
@@ -668,9 +671,9 @@ fn print_results_for_property<W: std::io::Write>(
 }
 
 fn main() {
-    use std::io::Write;
     let args = Box::leak::<'static>(Box::new(Args::parse()));
     std::env::set_current_dir(&args.directory);
+    use std::io::Write;
     assert!(args.parallelism > 0);
     let property_versions: Vec<_> = if args.property_versions.is_empty() {
         println!("INFO: No specification variants to run given, running all known ones");
@@ -750,7 +753,7 @@ fn main() {
     let mut w = std::io::stdout();
     let mut dir_builder = std::fs::DirBuilder::new();
     dir_builder.recursive(true);
-    let results: ResultTable = configurations
+    let mut results: ResultTable = configurations
         .into_iter()
         .map(|(typ, edits)| {
             (
@@ -779,7 +782,7 @@ fn main() {
                                         dir_builder.create(outpath).unwrap();
                                     }
                                     assert!(config.compile_edit().unwrap());
-                                    (version.0, (config, Mutex::new((None, vec![]))))
+                                    (version.0, (config, (None, vec![])))
                                 })
                                 .collect(),
                         )
@@ -789,34 +792,14 @@ fn main() {
         })
         .collect();
 
-    std::thread::scope(|scope| {
-        let (send_work, receive_work) = channel();
-
-        for t in results.values() {
-            for e in t.values() {
-                for descr in e.values() {
-                    send_work.send(descr).unwrap()
-                }
+    for t in results.values_mut() {
+        for e in t.values_mut() {
+            for (config, results) in e.values_mut() {
+                assert!(results.0.replace(config.run_edit().unwrap()).is_none());
             }
         }
+    }
 
-        let receive_work = Arc::new(Mutex::new(receive_work));
-
-        for _ in 0..args.parallelism {
-            let my_receive = receive_work.clone();
-            let my_results_ref = &results;
-            std::thread::Builder::new()
-                .spawn_scoped(scope, move || {
-                    while let Some((config, mutex)) =
-                        my_receive.lock().ok().and_then(|r| r.recv().ok())
-                    {
-                        let mut guard = mutex.try_lock().unwrap();
-                        assert!(guard.0.replace(config.run_edit().unwrap()).is_none());
-                    }
-                })
-                .unwrap();
-        }
-    });
 
     print_results_for_property(
         &mut w,
@@ -827,52 +810,31 @@ fn main() {
     .unwrap();
     writeln!(w, "Error message results:").unwrap();
 
-    std::thread::scope(|scope| {
-        let (send_work, receive_work) = channel();
-
-        for t in results.values() {
-            for e in t.values() {
-                for (config, result_mutex) in e.values() {
-                    if matches!(
-                        result_mutex.try_lock().unwrap().0.unwrap(),
-                        RunResult::CheckError(_)
-                    ) {
-                        for emv in error_message_versions.iter() {
-                            send_work.send((config, result_mutex, emv)).unwrap()
-                        }
-                    } else {
-                        progress.inc(error_message_versions.len() as u64);
+    for t in results.values_mut() {
+        for e in t.values_mut() {
+            for (config, mutex) in e.values_mut() {
+                if matches!(
+                    mutex.0.unwrap(),
+                    RunResult::CheckError(_)
+                ) {
+                    for emv in error_message_versions.iter() {
+                        let emvresult = config.run_error_msg(emv).unwrap();
+                        progress.inc(1);
+                        mutex.1.push((emv, emvresult));
                     }
+                } else {
+                    progress.inc(error_message_versions.len() as u64);
                 }
             }
         }
+    }
 
-        let receive_work = Arc::new(Mutex::new(receive_work));
-
-        for _ in 0..args.parallelism {
-            let my_receive = receive_work.clone();
-            let my_results_ref = &results;
-            let progress_ref = &progress;
-            std::thread::Builder::new()
-                .spawn_scoped(scope, move || {
-                    while let Some((config, mutex, emv)) =
-                        my_receive.lock().ok().and_then(|r| r.recv().ok())
-                    {
-                        let emvresult = config.run_error_msg(emv).unwrap();
-                        progress_ref.inc(1);
-                        mutex.lock().unwrap().1.push((emv, emvresult));
-                    }
-                })
-                .unwrap();
-        }
-    });
 
     for type_results in results.values() {
         for edit_results in type_results.values() {
             for (config, result) in edit_results.values() {
-                let results = &result.try_lock().unwrap();
-                if matches!(results.0, Some(RunResult::CheckError(_))) {
-                    for (emv, result) in results.1.iter() {
+                if matches!(result.0, Some(RunResult::CheckError(_))) {
+                    for (emv, result) in result.1.iter() {
                         progress.suspend(|| {
                             writeln!(w, "{}: {emv} {result}", config.describe()).unwrap();
                         });
@@ -883,3 +845,5 @@ fn main() {
     }
     progress.finish_and_clear();
 }
+
+
