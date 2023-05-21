@@ -770,6 +770,7 @@ fn main() {
                             property_versions
                                 .iter()
                                 .map(|&version| {
+                                    assert!(edit.as_ref().map_or(true, |e| e.property == typ));
                                     let config = RunConfiguration {
                                         typ,
                                         version,
