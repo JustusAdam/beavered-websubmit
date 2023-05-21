@@ -509,11 +509,11 @@ impl RunConfiguration {
                 .join(&format!("dfpp-props/err_msg_template_{template}.frg"));
             copy(&mut std::fs::File::open(template_file)?, &mut w)?;
         }
+        let forge_output_path = self.outpath().join("err-msg-result-{template}.txt");
         let mut racket_cmd = Command::new("racket");
-        racket_cmd.arg(&frg_file).stdin(Stdio::null());
-        if !self.verbose() {
-            racket_cmd.stderr(Stdio::null()).stdout(Stdio::null());
-        }
+        racket_cmd.arg(&frg_file).stdin(Stdio::null()).stderr(Stdio::null());
+        let forge_output_file = std::fs::OpenOptions::new().create(true).truncate(true).write(true).open(&forge_output_path)?;
+        racket_cmd.stdout(forge_output_file);
         if self.verbose_commands() {
             self.progress
                 .suspend(|| println!("Executing check command: {:?}", racket_cmd));
@@ -523,12 +523,14 @@ impl RunConfiguration {
 
         let status = wait_with_timeout(self.err_msg_timeout(), &mut child)?;
 
+
         if let Some(status) = status {
-            let output = child.wait_with_output()?;
             if status.success() {
                 Ok(ErrMsgResult::Sat(time.elapsed()))
             } else {
-                let forge_output_str = String::from_utf8_lossy(&output.stderr);
+                use std::io::Read;
+                let mut forge_output_str = String::new();
+                std::fs::File::open(forge_output_path)?.read_to_string(&mut forge_output_str);
                 let counting_tesult = read_and_count_forge_unsat_instance(&forge_output_str);
                 if counting_tesult.is_err() {
                     use std::io::Write;
@@ -770,6 +772,7 @@ fn main() {
                             property_versions
                                 .iter()
                                 .map(|&version| {
+                                    assert!(edit.as_ref().map_or(true, |e| e.property == typ));
                                     let config = RunConfiguration {
                                         typ,
                                         version,
