@@ -29,9 +29,18 @@ const ERR_MSG_VERSIONS: &[&str] = &["original", "optimized", "minimal"];
 type Version<'a> = (&'a str, &'a [&'a str]);
 
 const ALL_KNOWN_VARIANTS: &[Version] = &[
-    ("lib", &["dfpp-props/basic-helpers", "lib_framework_helpers"]),
-    ("baseline", &["dfpp-props/basic-helpers", "framework_helpers"]),
-    ("strict", &["dfpp-props/basic-helpers", "strict_framework_helpers"]),
+    (
+        "lib",
+        &["dfpp-props/basic-helpers", "lib_framework_helpers"],
+    ),
+    (
+        "baseline",
+        &["dfpp-props/basic-helpers", "framework_helpers"],
+    ),
+    (
+        "strict",
+        &["dfpp-props/basic-helpers", "strict_framework_helpers"],
+    ),
 ];
 
 /// Batch executor for the evaluation of our 2023 HotOS paper.
@@ -226,7 +235,6 @@ enum RunResult {
     Timeout,
 }
 
-
 impl std::fmt::Display for RunResult {
     fn fmt(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
         use std::fmt::Alignment;
@@ -338,14 +346,17 @@ impl std::fmt::Display for ErrMsgResult {
     }
 }
 
-fn wait_with_timeout(timeout: Duration, proc: &mut std::process::Child) -> std::io::Result<Option<std::process::ExitStatus>> {
+fn wait_with_timeout(
+    timeout: Duration,
+    proc: &mut std::process::Child,
+) -> std::io::Result<Option<std::process::ExitStatus>> {
     let mut status;
     let time = std::time::Instant::now();
     while {
         status = proc.try_wait()?;
         status.is_none()
     } {
-        if  time.elapsed() > timeout {
+        if time.elapsed() > timeout {
             proc.kill()?;
             break;
         }
@@ -511,8 +522,15 @@ impl RunConfiguration {
         }
         let forge_output_path = self.outpath().join("err-msg-result-{template}.txt");
         let mut racket_cmd = Command::new("racket");
-        racket_cmd.arg(&frg_file).stdin(Stdio::null()).stderr(Stdio::null());
-        let forge_output_file = std::fs::OpenOptions::new().create(true).truncate(true).write(true).open(&forge_output_path)?;
+        racket_cmd
+            .arg(&frg_file)
+            .stdin(Stdio::null())
+            .stderr(Stdio::null());
+        let forge_output_file = std::fs::OpenOptions::new()
+            .create(true)
+            .truncate(true)
+            .write(true)
+            .open(&forge_output_path)?;
         racket_cmd.stdout(forge_output_file);
         if self.verbose_commands() {
             self.progress
@@ -522,7 +540,6 @@ impl RunConfiguration {
         let mut child = racket_cmd.spawn()?;
 
         let status = wait_with_timeout(self.err_msg_timeout(), &mut child)?;
-
 
         if let Some(status) = status {
             if status.success() {
@@ -550,7 +567,7 @@ impl RunConfiguration {
                 ))
             }
         } else {
-             Ok(ErrMsgResult::Timeout)
+            Ok(ErrMsgResult::Timeout)
         }
     }
 
@@ -583,19 +600,8 @@ impl RunConfiguration {
 
 type ResultPayload = (Option<RunResult>, Vec<(&'static str, ErrMsgResult)>);
 
-type ResultTable<T> = HashMap<
-    Property,
-    HashMap<
-        Option<Edit>,
-        HashMap<
-            &'static str,
-            (
-                RunConfiguration,
-                T,
-            ),
-        >,
-    >,
->;
+type ResultTable<T> =
+    HashMap<Property, HashMap<Option<Edit>, HashMap<&'static str, (RunConfiguration, T)>>>;
 
 type ParResultTable = ResultTable<Mutex<ResultPayload>>;
 
@@ -604,12 +610,16 @@ type SeqResultTable = ResultTable<ResultPayload>;
 const head_cell_width: usize = 12;
 const body_cell_width: usize = 30;
 
-fn print_results_for_property<T, F: FnMut(&mut W, &Option<Edit>, &T) -> std::io::Result<ResultClassification>,W: std::io::Write>(
+fn print_results_for_property<
+    T,
+    F: FnMut(&mut W, &Option<Edit>, &T) -> std::io::Result<ResultClassification>,
+    W: std::io::Write,
+>(
     mut w: W,
     num_versions: usize,
     property_versions: &[Version],
     results: &ResultTable<T>,
-    mut f: F
+    mut f: F,
 ) -> std::io::Result<()> {
     for (typ, results) in results.iter() {
         let mut false_negatives = Vec::with_capacity(num_versions);
@@ -633,21 +643,23 @@ fn print_results_for_property<T, F: FnMut(&mut W, &Option<Edit>, &T) -> std::io:
         for (edit, versions) in edits {
             let edit_str = edit.as_ref().map_or("none".to_string(), Edit::to_string);
             write!(w, " {:head_cell_width$} ", edit_str)?;
-            write!(w, "| {:^body_cell_width$} ", if let Some(edit) = &edit {
-                edit.severity.expected_emoji()
-            } else {
-                "✅"
-            })?;
-			for (i, (version, _)) in property_versions.iter().enumerate() {
-				let (_, mutex) = versions.get(version).unwrap();
+            write!(
+                w,
+                "| {:^body_cell_width$} ",
+                if let Some(edit) = &edit {
+                    edit.severity.expected_emoji()
+                } else {
+                    "✅"
+                }
+            )?;
+            for (i, (version, _)) in property_versions.iter().enumerate() {
+                let (_, mutex) = versions.get(version).unwrap();
                 match f(&mut w, edit, mutex)? {
-                    ResultClassification::FalsePositive =>
-                        false_positives[i] += 1,
-                    ResultClassification::FalseNegative =>
-                        false_negatives[i] += 1,
+                    ResultClassification::FalsePositive => false_positives[i] += 1,
+                    ResultClassification::FalseNegative => false_negatives[i] += 1,
                     ResultClassification::Uninteresting => (),
                 }
-			}
+            }
             // for (i, (_, (_, mutex))) in versions.iter().enumerate() {
             //     let result = mutex;
             //     let run_result = result.0.unwrap();
@@ -692,7 +704,7 @@ fn print_results_for_property<T, F: FnMut(&mut W, &Option<Edit>, &T) -> std::io:
 enum ResultClassification {
     FalsePositive,
     FalseNegative,
-    Uninteresting
+    Uninteresting,
 }
 
 fn main() {
@@ -834,7 +846,6 @@ fn main_seq(args: &'static Args) {
         }
     }
 
-
     print_results_for_property(
         &mut w,
         num_versions,
@@ -855,7 +866,7 @@ fn main_seq(args: &'static Args) {
                 RunResult::Success(_) if !was_expected => ResultClassification::FalseNegative,
                 _ => ResultClassification::Uninteresting,
             })
-        }
+        },
     )
     .unwrap();
     writeln!(w, "Error message results:").unwrap();
@@ -863,10 +874,7 @@ fn main_seq(args: &'static Args) {
     for t in results.values_mut() {
         for e in t.values_mut() {
             for (config, mutex) in e.values_mut() {
-                if matches!(
-                    mutex.0.unwrap(),
-                    RunResult::CheckError(_)
-                ) {
+                if matches!(mutex.0.unwrap(), RunResult::CheckError(_)) {
                     for emv in error_message_versions.iter() {
                         let emvresult = config.run_error_msg(emv).unwrap();
                         progress.inc(1);
@@ -879,7 +887,6 @@ fn main_seq(args: &'static Args) {
         }
     }
 
-
     for type_results in results.values() {
         for edit_results in type_results.values() {
             for (config, result) in edit_results.values() {
@@ -889,7 +896,7 @@ fn main_seq(args: &'static Args) {
                             writeln!(w, "{}: {emv} {result}", config.describe()).unwrap();
                         });
                     }
-                } 
+                }
             }
         }
     }
@@ -1066,7 +1073,7 @@ fn main_par(args: &'static Args) {
                 RunResult::Success(_) if !was_expected => ResultClassification::FalseNegative,
                 _ => ResultClassification::Uninteresting,
             })
-        }
+        },
     )
     .unwrap();
     writeln!(w, "Error message results:").unwrap();
@@ -1120,11 +1127,9 @@ fn main_par(args: &'static Args) {
                             writeln!(w, "{}: {emv} {result}", config.describe()).unwrap();
                         });
                     }
-                } 
+                }
             }
         }
     }
     progress.finish_and_clear();
 }
-
-
