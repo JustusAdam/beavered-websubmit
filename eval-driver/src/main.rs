@@ -271,7 +271,7 @@ impl std::fmt::Display for StringErr {
 
 impl std::error::Error for StringErr {}
 
-fn read_and_count_forge_unsat_instance(all: &str) -> Result<u32, String> {
+fn read_and_count_forge_unsat_instance(all: &str) -> Result<(usize, usize), String> {
     extern crate serde_lexpr as sexpr;
     use std::io::Read;
     let target = all
@@ -290,7 +290,7 @@ fn read_and_count_forge_unsat_instance(all: &str) -> Result<u32, String> {
     let flow = value
         .get("minimal_subflow")
         .ok_or("Did not find 'minimal_subflow' key")?;
-    Ok(flow
+    let err_graph_edges = flow
         .list_iter()
         .ok_or("'minimal_subflow' is not an s-expression list")?
         .map(|v| {
@@ -299,7 +299,7 @@ fn read_and_count_forge_unsat_instance(all: &str) -> Result<u32, String> {
                 .ok_or("'minimal_subflow' elements are not lists")?
                 .as_slice()
             {
-                [_, from, to] => Ok((
+                [from, to] => Ok((
                     from.as_symbol().ok_or(
                         "Second elements of 'minimal_subflow' elements should be a symbol",
                     )?,
@@ -310,13 +310,43 @@ fn read_and_count_forge_unsat_instance(all: &str) -> Result<u32, String> {
                 _ => Err("'minimal_subflow' list elements should be 3-tuples"),
             }
         })
-        .count() as u32)
+        .collect::<Result<Vec<_>,_>>()?
+        .len();
+    let regular_graph_edges = value
+        .get("flow")
+        .ok_or("could not find 'flow'")?
+        .list_iter()
+        .ok_or("'flow' is not an s-expression list")?
+        .map(|v| {
+            match v
+                .to_ref_vec()
+                .ok_or("'flow' elements are not lists")?
+                .as_slice()
+            {
+                [from, to] => Ok((
+                    from.as_symbol().ok_or(
+                        "Second elements of 'flow' elements should be a symbol",
+                    )?,
+                    to.as_symbol()
+                        .ok_or("Third elements of 'flow' elements should be a symbol")?,
+                    0,
+                )),
+                _ => Err("'minimal_subflow' list elements should be 3-tuples"),
+            }
+        })
+        .collect::<Result<Vec<_>,_>>()?
+        .len();
+    Ok((regular_graph_edges, err_graph_edges))
 }
 
 #[derive(Clone, Copy)]
 enum ErrMsgResult {
     Timeout,
-    Success(std::time::Duration, u32),
+    Success{
+        runtime: std::time::Duration,
+        regular_edges: usize,
+        error_edges: usize,
+    },
     Sat(std::time::Duration),
 }
 
@@ -324,10 +354,10 @@ impl std::fmt::Display for ErrMsgResult {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ErrMsgResult::Timeout => f.write_str("timed out"),
-            ErrMsgResult::Success(time, edgecount) => write!(
+            ErrMsgResult::Success{ runtime, regular_edges, error_edges } => write!(
                 f,
-                "succeeded in {} with a graph of {edgecount}",
-                humantime::format_duration(*time)
+                "succeeded in {} with {error_edges} of {regular_edges} edges",
+                humantime::format_duration(*runtime)
             ),
             ErrMsgResult::Sat(duration) => write!(
                 f,
@@ -509,7 +539,7 @@ impl RunConfiguration {
                 .join(&format!("dfpp-props/err_msg_template_{template}.frg"));
             copy(&mut std::fs::File::open(template_file)?, &mut w)?;
         }
-        let forge_output_path = self.outpath().join("err-msg-result-{template}.txt");
+        let forge_output_path = self.outpath().join(format!("{}-{}-err-msg-result-{template}.txt", self.version.0, self.typ));
         let mut racket_cmd = Command::new("racket");
         racket_cmd.arg(&frg_file).stdin(Stdio::null()).stderr(Stdio::null());
         let forge_output_file = std::fs::OpenOptions::new().create(true).truncate(true).write(true).open(&forge_output_path)?;
@@ -531,23 +561,12 @@ impl RunConfiguration {
                 use std::io::Read;
                 let mut forge_output_str = String::new();
                 std::fs::File::open(forge_output_path)?.read_to_string(&mut forge_output_str);
-                let counting_tesult = read_and_count_forge_unsat_instance(&forge_output_str);
-                if counting_tesult.is_err() {
-                    use std::io::Write;
-                    write!(
-                        &mut std::fs::OpenOptions::new()
-                            .create(true)
-                            .truncate(true)
-                            .write(true)
-                            .open(self.args.output_directory.join("err_msg_ouput.txt"))?,
-                        "{}",
-                        forge_output_str,
-                    )?;
-                }
-                Ok(ErrMsgResult::Success(
-                    time.elapsed(),
-                    counting_tesult.map_err(StringErr)?,
-                ))
+                let (regular_edges, error_edges) = read_and_count_forge_unsat_instance(&forge_output_str).map_err(StringErr)?;
+                Ok(ErrMsgResult::Success{
+                    runtime: time.elapsed(),
+                    regular_edges, 
+                    error_edges
+                })
             }
         } else {
              Ok(ErrMsgResult::Timeout)
