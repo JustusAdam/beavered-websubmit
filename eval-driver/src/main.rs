@@ -581,8 +581,9 @@ impl RunConfiguration {
     }
 }
 
+type ResultPayload = (Option<RunResult>, Vec<(&'static str, ErrMsgResult)>);
 
-type ResultTable = HashMap<
+type ResultTable<T> = HashMap<
     Property,
     HashMap<
         Option<Edit>,
@@ -590,20 +591,26 @@ type ResultTable = HashMap<
             &'static str,
             (
                 RunConfiguration,
-                (Option<RunResult>, Vec<(&'static str, ErrMsgResult)>),
+                T,
             ),
         >,
     >,
 >;
 
-fn print_results_for_property<W: std::io::Write>(
+type ParResultTable = ResultTable<Mutex<ResultPayload>>;
+
+type SeqResultTable = ResultTable<ResultPayload>;
+
+const head_cell_width: usize = 12;
+const body_cell_width: usize = 30;
+
+fn print_results_for_property<T, F: FnMut(&mut W, &Option<Edit>, &T) -> std::io::Result<ResultClassification>,W: std::io::Write>(
     mut w: W,
     num_versions: usize,
     property_versions: &[Version],
-    results: &ResultTable,
+    results: &ResultTable<T>,
+    mut f: F
 ) -> std::io::Result<()> {
-    let head_cell_width = 12;
-    let body_cell_width = 30;
     for (typ, results) in results.iter() {
         let mut false_negatives = Vec::with_capacity(num_versions);
         false_negatives.resize(num_versions, 0);
@@ -633,21 +640,13 @@ fn print_results_for_property<W: std::io::Write>(
             })?;
 			for (i, (version, _)) in property_versions.iter().enumerate() {
 				let (_, mutex) = versions.get(version).unwrap();
-				let result = mutex;
-                let run_result = result.0.unwrap();
-                let was_expected = if let Some(edit) = edit {
-                    edit.severity.expected_result(&run_result)
-                } else {
-                    matches!(run_result, RunResult::Success(_))
-                };
-                if !was_expected {
-                    match run_result {
-                        RunResult::CheckError(_) => false_positives[i] += 1,
-                        RunResult::Success(_) => false_negatives[i] += 1,
-                        _ => (),
-                    };
+                match f(&mut w, edit, mutex)? {
+                    ResultClassification::FalsePositive =>
+                        false_positives[i] += 1,
+                    ResultClassification::FalseNegative =>
+                        false_negatives[i] += 1,
+                    ResultClassification::Uninteresting => (),
                 }
-                write!(w, "| {:^body_cell_width$} ", run_result)?;
 			}
             // for (i, (_, (_, mutex))) in versions.iter().enumerate() {
             //     let result = mutex;
@@ -690,11 +689,25 @@ fn print_results_for_property<W: std::io::Write>(
     Ok(())
 }
 
+enum ResultClassification {
+    FalsePositive,
+    FalseNegative,
+    Uninteresting
+}
+
 fn main() {
     let args = Box::leak::<'static>(Box::new(Args::parse()));
-    std::env::set_current_dir(&args.directory);
-    use std::io::Write;
+    std::env::set_current_dir(&args.directory).unwrap();
     assert!(args.parallelism > 0);
+    if args.parallelism == 1 {
+        main_seq(args);
+    } else {
+        main_par(args);
+    }
+}
+
+fn main_seq(args: &'static Args) {
+    use std::io::Write;
     let property_versions: Vec<_> = if args.property_versions.is_empty() {
         println!("INFO: No specification variants to run given, running all known ones");
         ALL_KNOWN_VARIANTS.to_vec()
@@ -773,7 +786,7 @@ fn main() {
     let mut w = std::io::stdout();
     let mut dir_builder = std::fs::DirBuilder::new();
     dir_builder.recursive(true);
-    let mut results: ResultTable = configurations
+    let mut results: SeqResultTable = configurations
         .into_iter()
         .map(|(typ, edits)| {
             (
@@ -827,6 +840,22 @@ fn main() {
         num_versions,
         property_versions.as_slice(),
         &results,
+        |w, edit, result| {
+            use std::io::Write;
+            let run_result = result.0.unwrap();
+            let was_expected = if let Some(edit) = edit {
+                edit.severity.expected_result(&run_result)
+            } else {
+                matches!(run_result, RunResult::Success(_))
+            };
+            write!(w, "| {:^body_cell_width$} ", run_result)?;
+
+            Ok(match run_result {
+                RunResult::CheckError(_) if !was_expected => ResultClassification::FalsePositive,
+                RunResult::Success(_) if !was_expected => ResultClassification::FalseNegative,
+                _ => ResultClassification::Uninteresting,
+            })
+        }
     )
     .unwrap();
     writeln!(w, "Error message results:").unwrap();
@@ -854,6 +883,237 @@ fn main() {
     for type_results in results.values() {
         for edit_results in type_results.values() {
             for (config, result) in edit_results.values() {
+                if matches!(result.0, Some(RunResult::CheckError(_))) {
+                    for (emv, result) in result.1.iter() {
+                        progress.suspend(|| {
+                            writeln!(w, "{}: {emv} {result}", config.describe()).unwrap();
+                        });
+                    }
+                } 
+            }
+        }
+    }
+    progress.finish_and_clear();
+}
+
+fn main_par(args: &'static Args) {
+    use std::io::Write;
+    let property_versions: Vec<_> = if args.property_versions.is_empty() {
+        println!("INFO: No specification variants to run given, running all known ones");
+        ALL_KNOWN_VARIANTS.to_vec()
+    } else {
+        ALL_KNOWN_VARIANTS
+            .iter()
+            .cloned()
+            .filter(|v| args.property_versions.iter().any(|e| e.as_str() == v.0))
+            .collect()
+    };
+
+    let error_message_versions: Vec<_> = if let Some(v) = args.error_message_versions.as_ref() {
+        let str_refs = v.iter().map(String::as_str).collect::<Vec<_>>();
+        if let ["none"] = str_refs.as_slice() {
+            vec![]
+        } else {
+            str_refs
+        }
+    } else {
+        ERR_MSG_VERSIONS.to_vec()
+    };
+
+    let ref is_selected = {
+        let as_ref_v = args
+            .only
+            .as_ref()
+            .map(|v| v.iter().cloned().collect::<HashSet<Edit>>());
+        let args_ref = &args;
+        move |s: &Edit| !args_ref.no_edits && as_ref_v.as_ref().map_or(true, |v| v.contains(s))
+    };
+
+    let num_versions = property_versions.len();
+
+    let configurations: Vec<(_, Vec<_>)> = CONFIGURATIONS
+        .iter()
+        .filter(|conf| {
+            args.only_property
+                .as_ref()
+                .map_or(true, |p| p.contains(&conf.0))
+        })
+        .flat_map(|&(property, num_edits)| {
+            assert!(num_edits > 0);
+            let new_edits = (1..=num_edits)
+                .flat_map(|articulation_point| {
+                    [Severity::Benign, Severity::Bug, Severity::Intentional]
+                        .into_iter()
+                        .map(move |severity| Edit {
+                            severity,
+                            articulation_point,
+                            property,
+                        })
+                        .filter(|e| is_selected(e))
+                })
+                .collect::<Vec<_>>();
+            (args.no_edits || !new_edits.is_empty()).then_some((property, new_edits))
+        })
+        .collect();
+
+    let num_configurations = configurations
+        .iter()
+        .map(
+            |(_, inner)| inner.len() + 1, // default (no edits)
+        )
+        .sum::<usize>()
+        * (2 * num_versions // compile + prop check
+           + num_versions * error_message_versions.len());
+
+    let mut progress = Box::leak::<'static>(Box::new(
+        ProgressBar::new(num_configurations as u64).with_style(
+            indicatif::ProgressStyle::default_bar()
+                .template("{msg:11} {bar:40} {pos:>3}/{len:3}")
+                .unwrap(),
+        ),
+    ));
+
+    let mut w = std::io::stdout();
+    let mut dir_builder = std::fs::DirBuilder::new();
+    dir_builder.recursive(true);
+    let results: ParResultTable = configurations
+        .into_iter()
+        .map(|(typ, edits)| {
+            (
+                typ,
+                edits
+                    .iter()
+                    .copied()
+                    .map(Some)
+                    .chain([None])
+                    .map(|edit| {
+                        progress.set_message(edit.map_or("default".to_string(), |e| e.to_string()));
+                        (
+                            edit,
+                            property_versions
+                                .iter()
+                                .map(|&version| {
+                                    assert!(edit.as_ref().map_or(true, |e| e.property == typ));
+                                    let config = RunConfiguration {
+                                        typ,
+                                        version,
+                                        edit,
+                                        progress,
+                                        args,
+                                    };
+                                    let outpath = config.outpath();
+                                    if !outpath.exists() {
+                                        dir_builder.create(outpath).unwrap();
+                                    }
+                                    assert!(config.compile_edit().unwrap());
+                                    (version.0, (config, Mutex::new((None, vec![]))))
+                                })
+                                .collect(),
+                        )
+                    })
+                    .collect(),
+            )
+        })
+        .collect();
+
+    std::thread::scope(|scope| {
+        let (send_work, receive_work) = channel();
+
+        for t in results.values() {
+            for e in t.values() {
+                for descr in e.values() {
+                    send_work.send(descr).unwrap()
+                }
+            }
+        }
+
+        let receive_work = Arc::new(Mutex::new(receive_work));
+
+        for _ in 0..args.parallelism {
+            let my_receive = receive_work.clone();
+            let my_results_ref = &results;
+            std::thread::Builder::new()
+                .spawn_scoped(scope, move || {
+                    while let Some((config, mutex)) =
+                        my_receive.lock().ok().and_then(|r| r.recv().ok())
+                    {
+                        let mut guard = mutex.try_lock().unwrap();
+                        assert!(guard.0.replace(config.run_edit().unwrap()).is_none());
+                    }
+                })
+                .unwrap();
+        }
+    });
+
+    print_results_for_property(
+        &mut w,
+        num_versions,
+        property_versions.as_slice(),
+        &results,
+        |w, edit, mutex| {
+            use std::io::Write;
+            let result = mutex.try_lock().unwrap();
+            let run_result = result.0.unwrap();
+            let was_expected = if let Some(edit) = edit {
+                edit.severity.expected_result(&run_result)
+            } else {
+                matches!(run_result, RunResult::Success(_))
+            };
+
+            write!(w, "| {:^body_cell_width$} ", run_result)?;
+            Ok(match run_result {
+                RunResult::CheckError(_) if !was_expected => ResultClassification::FalsePositive,
+                RunResult::Success(_) if !was_expected => ResultClassification::FalseNegative,
+                _ => ResultClassification::Uninteresting,
+            })
+        }
+    )
+    .unwrap();
+    writeln!(w, "Error message results:").unwrap();
+    std::thread::scope(|scope| {
+        let (send_work, receive_work) = channel();
+
+        for t in results.values() {
+            for e in t.values() {
+                for (config, result_mutex) in e.values() {
+                    if matches!(
+                        result_mutex.try_lock().unwrap().0.unwrap(),
+                        RunResult::CheckError(_)
+                    ) {
+                        for emv in error_message_versions.iter() {
+                            send_work.send((config, result_mutex, emv)).unwrap()
+                        }
+                    } else {
+                        progress.inc(error_message_versions.len() as u64);
+                    }
+                }
+            }
+        }
+
+        let receive_work = Arc::new(Mutex::new(receive_work));
+
+        for _ in 0..args.parallelism {
+            let my_receive = receive_work.clone();
+            let my_results_ref = &results;
+            let progress_ref = &progress;
+            std::thread::Builder::new()
+                .spawn_scoped(scope, move || {
+                    while let Some((config, mutex, emv)) =
+                        my_receive.lock().ok().and_then(|r| r.recv().ok())
+                    {
+                        let emvresult = config.run_error_msg(emv).unwrap();
+                        progress_ref.inc(1);
+                        mutex.lock().unwrap().1.push((emv, emvresult));
+                    }
+                })
+                .unwrap();
+        }
+    });
+
+    for type_results in results.values() {
+        for edit_results in type_results.values() {
+            for (config, result) in edit_results.values() {
+                let result = &result.try_lock().unwrap();
                 if matches!(result.0, Some(RunResult::CheckError(_))) {
                     for (emv, result) in result.1.iter() {
                         progress.suspend(|| {
