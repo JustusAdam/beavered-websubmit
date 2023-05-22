@@ -660,23 +660,6 @@ fn print_results_for_property<
                     ResultClassification::Uninteresting => (),
                 }
             }
-            // for (i, (_, (_, mutex))) in versions.iter().enumerate() {
-            //     let result = mutex;
-            //     let run_result = result.0.unwrap();
-            //     let was_expected = if let Some(edit) = edit {
-            //         edit.severity.expected_result(&run_result)
-            //     } else {
-            //         matches!(run_result, RunResult::Success(_))
-            //     };
-            //     if !was_expected {
-            //         match run_result {
-            //             RunResult::CheckError(_) => false_positives[i] += 1,
-            //             RunResult::Success(_) => false_negatives[i] += 1,
-            //             _ => (),
-            //         };
-            //     }
-            //     write!(w, "| {:^body_cell_width$} ", run_result)?;
-            // }
             writeln!(w, "")?;
         }
         write!(w, "-{:-<head_cell_width$}-", "")?;
