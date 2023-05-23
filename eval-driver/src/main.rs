@@ -24,7 +24,7 @@ const CONFIGURATIONS: &[(Property, usize)] = &[
     (Property::Disclosure, 3),
 ];
 
-const ERR_MSG_VERSIONS: &[&str] = &["original", "optimized", "minimal", "labels"];
+const ERR_MSG_VERSIONS: &[&str] = &["original", "optimized", "minimal", "labels", "min_labels"];
 
 type Version<'a> = (&'a str, &'a [&'a str]);
 
@@ -589,8 +589,9 @@ impl RunConfiguration {
                 .open(&frg_file)?;
             let sig_file = match template { 
                 "optimized" => "dfpp-props/err_msg_optimized_sigs",
-                "labels" => "dfpp-props/err_msg_labels_sigs",
-                _ => "dfpp-props/err_msg_sigs",
+                "labels" | "min_labels" => "dfpp-props/err_msg_labels_sigs",
+                "original" | "minimal" => "dfpp-props/err_msg_sigs",
+                _ => Err(StringErr(format!("Unknown err message type {template}")))?
             };
             self.write_headers_and_prop(&mut w, sig_file)?;
             let template_file = self
@@ -626,15 +627,15 @@ impl RunConfiguration {
                 use std::io::Read;
                 let mut forge_output_str = String::new();
                 std::fs::File::open(forge_output_path)?.read_to_string(&mut forge_output_str);
-                let payload = if template == "labels" {
-                    read_and_count_forge_unsat_instance_markers(&forge_output_str).map(ErrMsgResultPayload::Markers)
-                        
-                } else {
-                    read_and_count_forge_unsat_instance_edges(&forge_output_str).map(|(regular_edges, error_edges)|
-                        ErrMsgResultPayload::ErrGraph {
-                            regular_edges, error_edges
-                        }
-                    )
+                let payload = match template {
+                    "min_labels" | "labels" => read_and_count_forge_unsat_instance_markers(&forge_output_str).map(ErrMsgResultPayload::Markers),
+                    "original" | "optimized" | "minimal" =>
+                        read_and_count_forge_unsat_instance_edges(&forge_output_str).map(|(regular_edges, error_edges)|
+                            ErrMsgResultPayload::ErrGraph {
+                                regular_edges, error_edges
+                            },
+                    ),
+                    _ => Err(format!("Unknown error message version {template}")),
                 }.map_err(|e| StringErr(format!("{template} {}: ", self.describe()) + &e))?;
                 Ok(ErrMsgResult::Success{
                     runtime: time.elapsed(),
