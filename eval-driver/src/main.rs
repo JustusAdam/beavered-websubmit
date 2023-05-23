@@ -1212,8 +1212,9 @@ fn main_par(args: &'static Args) {
                                 },
                                 ..
                             } => write!(csv, "{error_edges},{regular_edges},"),
-                            _ => Ok(())
-                        }.unwrap()
+                            _ => write!(csv, ",,,"),
+                        }.unwrap();
+                        writeln!(csv).unwrap();
                     }
                 }
             }
