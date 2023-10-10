@@ -13,10 +13,10 @@ use rocket_dyn_templates::Template;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-#[cfg_attr(not(feature = "v-ann-lib"), dfpp::marker(safe_source))]
-pub(crate) struct Admin{
-	// TODO: fix.
-	a: bool,
+#[cfg_attr(not(feature = "v-ann-lib"), paralegal_flow::marker(safe_source))]
+pub(crate) struct Admin {
+    // TODO: fix.
+    a: bool,
 }
 
 #[derive(Debug)]
@@ -33,7 +33,7 @@ impl<'r> FromRequest<'r> for Admin {
         let cfg = request.guard::<&State<Config>>().await.unwrap();
 
         let res = if cfg.admins.contains(&apikey.user) {
-            Some(Admin{a: true})
+            Some(Admin { a: true })
         } else {
             None
         };

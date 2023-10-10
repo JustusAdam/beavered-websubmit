@@ -2,8 +2,8 @@ use lettre::sendmail::SendmailTransport;
 use lettre::Transport;
 use lettre_email::Email;
 
-#[cfg_attr(not(feature = "v-ann-lib"), dfpp::marker{ sink, arguments = [3, 4] })]
-#[cfg_attr(not(feature = "v-ann-lib"), dfpp::marker{ scopes, arguments = [2] })]
+#[cfg_attr(not(feature = "v-ann-lib"), paralegal_flow::marker{ sink, arguments = [3, 4] })]
+#[cfg_attr(not(feature = "v-ann-lib"), paralegal_flow::marker{ scopes, arguments = [2] })]
 pub(crate) fn my_send(
     log: slog::Logger,
     sender: String,

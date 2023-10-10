@@ -1,6 +1,6 @@
 #![feature(register_tool)]
 #![feature(stmt_expr_attributes)]
-#![register_tool(dfpp)]
+#![register_tool(paralegal_flow)]
 
 extern crate clap;
 extern crate mysql;
