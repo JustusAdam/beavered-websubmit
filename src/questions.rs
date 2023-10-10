@@ -167,8 +167,8 @@ fn get_answers(bg: &mut MySqlBackend, key: Either<u64, &str>) -> Vec<LectureAnsw
         .collect()
 }
 
-#[cfg_attr(feature = "edit-dis-3-a", dfpp::analyze)]
-#[cfg_attr(feature = "edit-dis-3-c", dfpp::analyze)]
+#[cfg_attr(feature = "edit-dis-3-a", paralegal_flow::analyze)]
+#[cfg_attr(feature = "edit-dis-3-c", paralegal_flow::analyze)]
 #[cfg_attr(feature = "v-ann-lib", paralegal_flow::marker(request_generated, arguments = [0]))]
 #[get("/<num>")]
 pub(crate) fn answers(
@@ -276,7 +276,7 @@ impl ApiKey {
 }
 
 #[cfg(feature = "edit-del-3-b")]
-#[dfpp::analyze]
+#[paralegal_flow::analyze]
 #[post("/answer/delete/<num>")]
 pub(crate) fn delete_answer_handler(
     apikey: ApiKey,
@@ -308,7 +308,7 @@ fn delete_my_answers_controller(
     Redirect::to("/")
 }
 
-#[dfpp::analyze]
+#[paralegal_flow::analyze]
 #[post("/forget")]
 pub(crate) fn forget_user(apikey: ApiKey, backend: &State<Arc<Mutex<MySqlBackend>>>) -> Redirect {
     let mut bg = backend.lock().unwrap();
@@ -419,7 +419,7 @@ pub(crate) fn questions_submit(
 ) -> Redirect {
     questions_submit_internal(apikey, num, data, backend, config)
 }
-#[dfpp::analyze]
+#[paralegal_flow::analyze]
 #[cfg_attr(feature = "v-ann-lib", paralegal_flow::marker(request_generated, arguments = [0]))]
 pub(crate) fn questions_submit_internal(
     apikey: ApiKey,
