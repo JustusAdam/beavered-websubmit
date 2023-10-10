@@ -18,7 +18,7 @@ use std::sync::{Arc, Mutex};
 #[cfg_attr(not(feature = "v-ann-lib"), paralegal_flow::marker(sensitive))]
 #[cfg_attr(
     not(feature = "v-ann-lib"),
-    dfpp::output_types(crate::questions::LectureAnswer)
+    paralegal_flow::output_types(crate::questions::LectureAnswer)
 )]
 #[derive(Debug, FromForm)]
 pub(crate) struct LectureQuestionSubmission {
