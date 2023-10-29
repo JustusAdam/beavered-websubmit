@@ -56,8 +56,8 @@ impl MySqlBackend {
         })
     }
 
-    #[paralegal_flow::marker(source)]
-    #[cfg_attr(feature = "v-ann-lib", paralegal_flow::marker(from_storage, return))]
+    #[paralegal::marker(source)]
+    #[cfg_attr(feature = "v-ann-lib", paralegal::marker(from_storage, return))]
     pub fn prep_exec(&mut self, sql: &str, params: Vec<Value>) -> Vec<Vec<Value>> {
         if !self.prep_stmts.contains_key(sql) {
             let stmt = self
@@ -94,19 +94,19 @@ impl MySqlBackend {
             .expect(&format!("failed to insert into {}, query {}!", table, q));
     }
 
-    #[paralegal_flow::marker{ stores, arguments = [2] }]
-    #[paralegal_flow::marker{ scopes, arguments = [2] }]
+    #[paralegal::marker{ stores, arguments = [2] }]
+    #[paralegal::marker{ scopes, arguments = [2] }]
     pub fn insert(&mut self, table: &str, vals: Vec<Value>) {
         self.do_insert(table, vals, false);
     }
 
-    #[cfg_attr(not(feature = "v-ann-strict"), paralegal_flow::marker{ scopes, arguments = [2] })]
-    #[paralegal_flow::marker{ stores, arguments = [2] }]
+    #[cfg_attr(not(feature = "v-ann-strict"), paralegal::marker{ scopes, arguments = [2] })]
+    #[paralegal::marker{ stores, arguments = [2] }]
     pub fn replace(&mut self, table: &str, vals: Vec<Value>) {
         self.do_insert(table, vals, true);
     }
 
-    #[paralegal_flow::marker(deletes, arguments = [2])]
+    #[paralegal::marker(deletes, arguments = [2])]
     pub fn delete(&mut self, table: &str, criteria: &[(&str, Value)]) {
         let (where_parts, vals): (Vec<_>, Vec<_>) = criteria
             .iter()

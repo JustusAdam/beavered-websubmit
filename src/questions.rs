@@ -15,17 +15,17 @@ use std::collections::HashMap;
 use std::hash::Hash;
 use std::sync::{Arc, Mutex};
 
-#[cfg_attr(not(feature = "v-ann-lib"), paralegal_flow::marker(sensitive))]
+#[cfg_attr(not(feature = "v-ann-lib"), paralegal::marker(sensitive))]
 #[cfg_attr(
     not(feature = "v-ann-lib"),
-    paralegal_flow::output_types(crate::questions::LectureAnswer)
+    paralegal::output_types(crate::questions::LectureAnswer)
 )]
 #[derive(Debug, FromForm)]
 pub(crate) struct LectureQuestionSubmission {
     answers: HashMap<u64, String>,
 }
 
-#[cfg_attr(not(feature = "v-ann-lib"), paralegal_flow::marker(sensitive))]
+#[cfg_attr(not(feature = "v-ann-lib"), paralegal::marker(sensitive))]
 #[derive(Serialize)]
 pub(crate) struct LectureQuestion {
     pub id: u64,
@@ -42,7 +42,7 @@ pub(crate) struct LectureQuestionsContext {
     pub parent: &'static str,
 }
 
-#[cfg_attr(not(feature = "v-ann-lib"), paralegal_flow::marker(sensitive))]
+#[cfg_attr(not(feature = "v-ann-lib"), paralegal::marker(sensitive))]
 #[derive(Serialize)]
 struct LectureAnswer {
     id: u64,
@@ -120,7 +120,7 @@ pub enum Either<A, B> {
     Right(B),
 }
 
-#[paralegal_flow::marker(source)]
+#[paralegal::marker(source)]
 fn get_one_answer(bg: &mut MySqlBackend, user: &str, key: u64) -> LectureAnswer {
     let res = bg.prep_exec(
         "SELECT * FROM answers WHERE email = ? AND num = ?",
@@ -142,7 +142,7 @@ fn get_one_answer(bg: &mut MySqlBackend, user: &str, key: u64) -> LectureAnswer 
         .unwrap()
 }
 
-#[cfg_attr(not(feature = "v-ann-lib"), paralegal_flow::marker(source))]
+#[cfg_attr(not(feature = "v-ann-lib"), paralegal::marker(source))]
 fn get_answers(bg: &mut MySqlBackend, key: Either<u64, &str>) -> Vec<LectureAnswer> {
     let (where_, key) = match key {
         Either::Left(lec) => ("lec", lec.into()),
@@ -167,9 +167,9 @@ fn get_answers(bg: &mut MySqlBackend, key: Either<u64, &str>) -> Vec<LectureAnsw
         .collect()
 }
 
-#[cfg_attr(feature = "edit-dis-3-a", paralegal_flow::analyze)]
-#[cfg_attr(feature = "edit-dis-3-c", paralegal_flow::analyze)]
-#[cfg_attr(feature = "v-ann-lib", paralegal_flow::marker(request_generated, arguments = [0]))]
+#[cfg_attr(feature = "edit-dis-3-a", paralegal::analyze)]
+#[cfg_attr(feature = "edit-dis-3-c", paralegal::analyze)]
+#[cfg_attr(feature = "v-ann-lib", paralegal::marker(request_generated, arguments = [0]))]
 #[get("/<num>")]
 pub(crate) fn answers(
     _admin: Admin,
@@ -255,7 +255,7 @@ pub(crate) fn questions(
 }
 
 impl LectureAnswer {
-    #[cfg_attr(not(feature = "v-ann-lib"), paralegal_flow::marker(deletes, arguments = [0]))]
+    #[cfg_attr(not(feature = "v-ann-lib"), paralegal::marker(deletes, arguments = [0]))]
     fn delete_answer(self, bg: &mut MySqlBackend) {
         bg.delete(
             "answers",
@@ -269,14 +269,14 @@ impl LectureAnswer {
 }
 
 impl ApiKey {
-    #[cfg_attr(not(feature = "v-ann-lib"), paralegal_flow::marker(deletes, arguments = [0]))]
+    #[cfg_attr(not(feature = "v-ann-lib"), paralegal::marker(deletes, arguments = [0]))]
     fn delete_apikey(self, bg: &mut MySqlBackend) {
         bg.delete("users", &[("email", self.user.into())])
     }
 }
 
 #[cfg(feature = "edit-del-3-b")]
-#[paralegal_flow::analyze]
+#[paralegal::analyze]
 #[post("/answer/delete/<num>")]
 pub(crate) fn delete_answer_handler(
     apikey: ApiKey,
@@ -308,7 +308,7 @@ fn delete_my_answers_controller(
     Redirect::to("/")
 }
 
-#[paralegal_flow::analyze]
+#[paralegal::analyze]
 #[post("/forget")]
 pub(crate) fn forget_user(apikey: ApiKey, backend: &State<Arc<Mutex<MySqlBackend>>>) -> Redirect {
     let mut bg = backend.lock().unwrap();
@@ -360,7 +360,7 @@ pub(crate) fn forget_user(apikey: ApiKey, backend: &State<Arc<Mutex<MySqlBackend
 
 #[cfg_attr(
     not(feature = "v-ann-lib"),
-    paralegal_flow::marker(safe_source_with_bless, return)
+    paralegal::marker(safe_source_with_bless, return)
 )]
 fn get_presenters(bg: &mut MySqlBackend, num: u8) -> Vec<String> {
     let mut presenter_emails = vec![];
@@ -374,7 +374,7 @@ fn get_presenters(bg: &mut MySqlBackend, num: u8) -> Vec<String> {
 
 #[cfg_attr(
     not(feature = "v-ann-lib"),
-    paralegal_flow::marker(safe_source_with_bless, return)
+    paralegal::marker(safe_source_with_bless, return)
 )]
 fn get_all_presenters(bg: &mut MySqlBackend) -> Vec<Vec<Value>> {
     bg.prep_exec("SELECT * FROM presenters;", vec![])
@@ -382,7 +382,7 @@ fn get_all_presenters(bg: &mut MySqlBackend) -> Vec<Vec<Value>> {
 
 #[cfg_attr(
     not(feature = "v-ann-lib"),
-    paralegal_flow::marker(bless_safe_source, return)
+    paralegal::marker(bless_safe_source, return)
 )]
 fn get_num(num: u8) -> u8 {
     num
@@ -390,21 +390,18 @@ fn get_num(num: u8) -> u8 {
 
 #[cfg_attr(
     not(feature = "v-ann-lib"),
-    paralegal_flow::marker(safe_source_with_bless, return)
+    paralegal::marker(safe_source_with_bless, return)
 )]
 fn get_staff(config: &State<Config>) -> Vec<String> {
     config.staff.clone()
 }
 
-#[cfg_attr(
-    not(feature = "v-ann-lib"),
-    paralegal_flow::marker(safe_source, return)
-)]
+#[cfg_attr(not(feature = "v-ann-lib"), paralegal::marker(safe_source, return))]
 fn get_admins(config: &State<Config>) -> Vec<String> {
     config.admins.clone()
 }
 
-#[cfg_attr(not(feature = "v-ann-lib"), paralegal_flow::marker(scopes, return))]
+#[cfg_attr(not(feature = "v-ann-lib"), paralegal::marker(scopes, return))]
 fn scopes_argument<T>(field: T) -> T {
     field
 }
@@ -419,8 +416,8 @@ pub(crate) fn questions_submit(
 ) -> Redirect {
     questions_submit_internal(apikey, num, data, backend, config)
 }
-#[paralegal_flow::analyze]
-#[cfg_attr(feature = "v-ann-lib", paralegal_flow::marker(request_generated, arguments = [0]))]
+#[paralegal::analyze]
+#[cfg_attr(feature = "v-ann-lib", paralegal::marker(request_generated, arguments = [0]))]
 pub(crate) fn questions_submit_internal(
     apikey: ApiKey,
     num: u8,

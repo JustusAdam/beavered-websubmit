@@ -1,6 +1,4 @@
-#![feature(register_tool)]
 #![feature(stmt_expr_attributes)]
-#![register_tool(paralegal_flow)]
 
 extern crate clap;
 extern crate mysql;
@@ -13,7 +11,6 @@ extern crate slog;
 extern crate slog_term;
 #[macro_use]
 extern crate serde_derive;
-
 
 #[macro_use]
 extern crate cfg_if;
