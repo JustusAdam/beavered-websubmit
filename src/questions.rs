@@ -401,8 +401,8 @@ fn get_admins(config: &State<Config>) -> Vec<String> {
     config.admins.clone()
 }
 
-#[cfg_attr(not(feature = "v-ann-lib"), paralegal::marker(scopes, return))]
-fn scopes_argument<T>(field: T) -> T {
+#[cfg_attr(not(feature = "v-ann-lib"), paralegal::marker(scopes_store, return))]
+fn scopes_store_argument<T>(field: T) -> T {
     field
 }
 
@@ -476,7 +476,7 @@ pub(crate) fn questions_submit_internal(
             }
         }
         let rec: Vec<Value> = vec![
-            scopes_argument(key),
+            scopes_store_argument(key),
             num,
             (*id).into(),
             answer.clone().into(),
