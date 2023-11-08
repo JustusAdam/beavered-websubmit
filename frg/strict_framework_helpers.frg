@@ -28,20 +28,20 @@ fun direct_scopes[f: Sink, labels_set: set Object->Label] : set Object {
 	}
 }
 
-fun all_scopes[f: CallSite, c: Ctrl, flow_set: set Src->Sink, labels_set: set Object->Label] : set Object {
-	let direct = labeled_objects[arguments[f], scopes, labels_set] |
+fun all_scopes_store[f: CallSite, c: Ctrl, flow_set: set Src->Sink, labels_set: set Object->Label] : set Object {
+	let direct = labeled_objects[arguments[f], scopes_store, labels_set] |
     {some direct => direct
     else {f = Return =>
         types.(labeled_objects[Type, safe_source, labels_set]) & sources_of[c]
         else
-        { scope : labeled_objects[Object, scopes, labels_set] |
+        { scope : labeled_objects[Object, scopes_store, labels_set] |
             flows_to[to_source[c, scope], f, flow_set]
         }
     }
     }
 }
 fun all_recipients[f: CallSite, c:Ctrl, flow_set: set Src->CallArgument, labels_set: set Object->Label] : set Src {
-    ^(flow_set + arg_call_site).(all_scopes[f, c, flow_set, labels_set]) & Src
+    ^(flow_set + arg_call_site).(all_scopes_store[f, c, flow_set, labels_set]) & Src
 }
 
 fun safe_sources[cs: Ctrl, flow: set Src->CallArgument, labels: set Object->Label] : set Object {

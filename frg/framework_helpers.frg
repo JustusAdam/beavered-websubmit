@@ -6,7 +6,7 @@ fun flow_roots[c: Ctrl, flow_set: set Src->CallArgument] : set Src->Sink {
 }
 
 fun all_recipients[f: CallSite, flow_set: set Src->CallArgument, labels_set: set Object->Label] : set Src {
-    ^(flow_set + arg_call_site).(labeled_objects[arguments[f], scopes, labels_set]) & Src
+    ^(flow_set + arg_call_site).(labeled_objects[arguments[f], scopes_store, labels_set]) & Src
 }
 
 fun all_scopes[f: Sink, labels_set: set Object->Label] : set Object {

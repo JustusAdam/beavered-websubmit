@@ -279,7 +279,6 @@ impl std::fmt::Display for StringErr {
 
 impl std::error::Error for StringErr {}
 
-
 fn read_forge_unsat_instance(all: &str) -> Result<serde_lexpr::Value, String> {
     extern crate serde_lexpr as sexpr;
     use std::io::Read;
@@ -300,7 +299,7 @@ fn read_forge_unsat_instance(all: &str) -> Result<serde_lexpr::Value, String> {
 
 fn read_and_count_forge_unsat_instance_markers(all: &str) -> Result<usize, String> {
     extern crate serde_lexpr as sexpr;
-    let value = read_forge_unsat_instance(all)?;    
+    let value = read_forge_unsat_instance(all)?;
     Ok(value
         .get("additional_labels")
         .ok_or("Did not find 'additional_labels' key")?
@@ -316,14 +315,15 @@ fn read_and_count_forge_unsat_instance_markers(all: &str) -> Result<usize, Strin
                     from.as_symbol().ok_or(
                         "Second elements of 'additional_labels' elements should be a symbol",
                     )?,
-                    to.as_symbol()
-                        .ok_or("Third elements of 'additional_labels' elements should be a symbol")?,
+                    to.as_symbol().ok_or(
+                        "Third elements of 'additional_labels' elements should be a symbol",
+                    )?,
                     0,
                 )),
                 _ => Err("'additional_labels' list elements should be 2-tuples"),
             }
         })
-        .collect::<Result<Vec<_>,_>>()?
+        .collect::<Result<Vec<_>, _>>()?
         .len())
 }
 
@@ -353,7 +353,7 @@ fn read_and_count_forge_unsat_instance_edges(all: &str) -> Result<(usize, usize)
                 _ => Err("'minimal_subflow' list elements should be 3-tuples"),
             }
         })
-        .collect::<Result<Vec<_>,_>>()?
+        .collect::<Result<Vec<_>, _>>()?
         .len();
     let regular_graph_edges = value
         .get("flow")
@@ -367,9 +367,8 @@ fn read_and_count_forge_unsat_instance_edges(all: &str) -> Result<(usize, usize)
                 .as_slice()
             {
                 [from, to] => Ok((
-                    from.as_symbol().ok_or(
-                        "Second elements of 'flow' elements should be a symbol",
-                    )?,
+                    from.as_symbol()
+                        .ok_or("Second elements of 'flow' elements should be a symbol")?,
                     to.as_symbol()
                         .ok_or("Third elements of 'flow' elements should be a symbol")?,
                     0,
@@ -377,7 +376,7 @@ fn read_and_count_forge_unsat_instance_edges(all: &str) -> Result<(usize, usize)
                 _ => Err("'minimal_subflow' list elements should be 3-tuples"),
             }
         })
-        .collect::<Result<Vec<_>,_>>()?
+        .collect::<Result<Vec<_>, _>>()?
         .len();
     Ok((regular_graph_edges, err_graph_edges))
 }
@@ -388,13 +387,13 @@ enum ErrMsgResultPayload {
     ErrGraph {
         regular_edges: usize,
         error_edges: usize,
-    }
+    },
 }
 
 #[derive(Clone, Copy)]
 enum ErrMsgResult {
     Timeout,
-    Success{
+    Success {
         runtime: std::time::Duration,
         payload: ErrMsgResultPayload,
     },
@@ -405,13 +404,23 @@ impl std::fmt::Display for ErrMsgResult {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ErrMsgResult::Timeout => f.write_str("timed out"),
-            ErrMsgResult::Success{ runtime, payload: ErrMsgResultPayload::ErrGraph{ regular_edges, error_edges } } => write!(
+            ErrMsgResult::Success {
+                runtime,
+                payload:
+                    ErrMsgResultPayload::ErrGraph {
+                        regular_edges,
+                        error_edges,
+                    },
+            } => write!(
                 f,
                 "succeeded in {} with {error_edges} of {regular_edges} edges",
                 humantime::format_duration(*runtime)
             ),
-            ErrMsgResult::Success{ runtime, payload: ErrMsgResultPayload::Markers(markers) } => write!(
-                f, 
+            ErrMsgResult::Success {
+                runtime,
+                payload: ErrMsgResultPayload::Markers(markers),
+            } => write!(
+                f,
                 "succeeded in {} with {markers} new markers",
                 humantime::format_duration(*runtime)
             ),
@@ -506,7 +515,7 @@ impl RunConfiguration {
         let mut dfpp_cmd = Command::new("cargo");
         dfpp_cmd
             .args([
-                "dfpp",
+                "paralegal-flow",
                 "--result-path",
                 &result_file_path.to_string_lossy(),
                 "--model-version",
@@ -587,11 +596,11 @@ impl RunConfiguration {
                 .write(true)
                 .create(true)
                 .open(&frg_file)?;
-            let sig_file = match template { 
+            let sig_file = match template {
                 "optimized" => "dfpp-props/err_msg_optimized_sigs",
                 "labels" | "min_labels" => "dfpp-props/err_msg_labels_sigs",
                 "original" | "minimal" => "dfpp-props/err_msg_sigs",
-                _ => Err(StringErr(format!("Unknown err message type {template}")))?
+                _ => Err(StringErr(format!("Unknown err message type {template}")))?,
             };
             self.write_headers_and_prop(&mut w, sig_file)?;
             let template_file = self
@@ -599,7 +608,10 @@ impl RunConfiguration {
                 .join(&format!("dfpp-props/err_msg_template_{template}.frg"));
             copy(&mut std::fs::File::open(template_file)?, &mut w)?;
         }
-        let forge_output_path = self.outpath().join(format!("{}-{}-err-msg-result-{template}.txt", self.version.0, self.typ));
+        let forge_output_path = self.outpath().join(format!(
+            "{}-{}-err-msg-result-{template}.txt",
+            self.version.0, self.typ
+        ));
         let mut racket_cmd = Command::new("racket");
         racket_cmd
             .arg(&frg_file)
@@ -628,18 +640,24 @@ impl RunConfiguration {
                 let mut forge_output_str = String::new();
                 std::fs::File::open(forge_output_path)?.read_to_string(&mut forge_output_str);
                 let payload = match template {
-                    "min_labels" | "labels" => read_and_count_forge_unsat_instance_markers(&forge_output_str).map(ErrMsgResultPayload::Markers),
-                    "original" | "optimized" | "minimal" =>
-                        read_and_count_forge_unsat_instance_edges(&forge_output_str).map(|(regular_edges, error_edges)|
-                            ErrMsgResultPayload::ErrGraph {
-                                regular_edges, error_edges
+                    "min_labels" | "labels" => {
+                        read_and_count_forge_unsat_instance_markers(&forge_output_str)
+                            .map(ErrMsgResultPayload::Markers)
+                    }
+                    "original" | "optimized" | "minimal" => {
+                        read_and_count_forge_unsat_instance_edges(&forge_output_str).map(
+                            |(regular_edges, error_edges)| ErrMsgResultPayload::ErrGraph {
+                                regular_edges,
+                                error_edges,
                             },
-                    ),
+                        )
+                    }
                     _ => Err(format!("Unknown error message version {template}")),
-                }.map_err(|e| StringErr(format!("{template} {}: ", self.describe()) + &e))?;
-                Ok(ErrMsgResult::Success{
+                }
+                .map_err(|e| StringErr(format!("{template} {}: ", self.describe()) + &e))?;
+                Ok(ErrMsgResult::Success {
                     runtime: time.elapsed(),
-                    payload
+                    payload,
                 })
             }
         } else {
@@ -1178,7 +1196,12 @@ fn main_par(args: &'static Args) {
         }
     });
 
-    let mut csv = std::fs::OpenOptions::new().truncate(true).create(true).write(true).open("err-msg-stats.csv").unwrap();
+    let mut csv = std::fs::OpenOptions::new()
+        .truncate(true)
+        .create(true)
+        .write(true)
+        .open("err-msg-stats.csv")
+        .unwrap();
 
     writeln!(csv, "Property,Version,Articulation Point,Severity,Runtime,Sucess,Repair Type,Error Size,Graph Size,Labels Size").unwrap();
 
@@ -1186,35 +1209,43 @@ fn main_par(args: &'static Args) {
         for edit_results in type_results.values() {
             for (config, result) in edit_results.values() {
                 let result = &result.try_lock().unwrap();
-                let RunConfiguration { version: (version, ..), edit, .. } = config;
+                let RunConfiguration {
+                    version: (version, ..),
+                    edit,
+                    ..
+                } = config;
                 if matches!(result.0, Some(RunResult::CheckError(_))) {
                     for (emv, result) in result.1.iter() {
                         progress.suspend(|| {
                             writeln!(w, "{}: {emv} {result}", config.describe()).unwrap();
                         });
-                        let Edit { severity, articulation_point, property } = edit.expect("Must be edit");
+                        let Edit {
+                            severity,
+                            articulation_point,
+                            property,
+                        } = edit.expect("Must be edit");
                         let (success, runtime) = match result {
                             ErrMsgResult::Timeout => ("timeout", Duration::ZERO),
                             ErrMsgResult::Sat(t) => ("failed", *t),
-                            ErrMsgResult::Success {
-                                runtime, ..
-                            } => ("yes", *runtime)
+                            ErrMsgResult::Success { runtime, .. } => ("yes", *runtime),
                         };
                         write!(csv, "{property},{version},{articulation_point},{severity},{},{success},{emv},", humantime::format_duration(runtime)).unwrap();
                         match result {
-                            ErrMsgResult::Success{
-                                payload: ErrMsgResultPayload::Markers(m) ,
-                                ..
-                            } =>
-                                write!(csv, ",,{m}"),
                             ErrMsgResult::Success {
-                                payload: ErrMsgResultPayload::ErrGraph {
-                                    regular_edges, error_edges
-                                },
+                                payload: ErrMsgResultPayload::Markers(m),
+                                ..
+                            } => write!(csv, ",,{m}"),
+                            ErrMsgResult::Success {
+                                payload:
+                                    ErrMsgResultPayload::ErrGraph {
+                                        regular_edges,
+                                        error_edges,
+                                    },
                                 ..
                             } => write!(csv, "{error_edges},{regular_edges},"),
                             _ => write!(csv, ",,,"),
-                        }.unwrap();
+                        }
+                        .unwrap();
                         writeln!(csv).unwrap();
                     }
                 }
