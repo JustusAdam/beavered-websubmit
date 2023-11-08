@@ -18,6 +18,8 @@ use std::str::FromStr;
 
 use std::sync::{mpsc::channel, Arc, Mutex};
 
+use paralegal_policy::{GraphLocation, SPDGGenCommand};
+
 const CONFIGURATIONS: &[(Property, usize)] = &[
     (Property::Deletion, 3),
     (Property::Storage, 1),
@@ -507,15 +509,15 @@ impl RunConfiguration {
     fn analysis_result_path(&self) -> std::path::PathBuf {
         self.forge_out_file("analysis-result")
     }
-    fn compile_edit(&self) -> anyhow::Result<bool> {
+    fn compile_edit(&self) -> anyhow::Result<GraphLocation> {
         use std::process::*;
         let (version, includes) = self.version;
 
         let result_file_path = self.analysis_result_path();
-        let mut dfpp_cmd = Command::new("cargo");
-        dfpp_cmd
+        let mut command = paralegal_policy::SPDGGenCommand::global();
+        command
+            .get_command()
             .args([
-                "paralegal-flow",
                 "--result-path",
                 &result_file_path.to_string_lossy(),
                 "--model-version",
@@ -527,22 +529,31 @@ impl RunConfiguration {
             .stdin(Stdio::null());
         let external_ann_file_name = format!("{}-external-annotations.toml", self.version.0);
         if std::path::Path::new(&external_ann_file_name).exists() {
-            dfpp_cmd.args(&["--external-annotations", external_ann_file_name.as_str()]);
+            command
+                .get_command()
+                .args(&["--external-annotations", external_ann_file_name.as_str()]);
         }
-        dfpp_cmd.args(&["--", "--features", &format!("v-ann-{version}")]);
+        command
+            .get_command()
+            .args(&["--", "--features", &format!("v-ann-{version}")]);
         if let Some(edit) = self.edit {
-            dfpp_cmd.args(&["--features", &edit.to_string()]);
+            command
+                .get_command()
+                .args(&["--features", &edit.to_string()]);
         }
         if !self.verbose() {
-            dfpp_cmd.stderr(Stdio::null()).stdout(Stdio::null());
+            command
+                .get_command()
+                .stderr(Stdio::null())
+                .stdout(Stdio::null());
         }
         if self.verbose_commands() {
             self.progress
-                .suspend(|| println!("Executing compile command: {:?}", dfpp_cmd));
+                .suspend(|| println!("Executing compile command: {:?}", command));
         }
-        let status = dfpp_cmd.status()?;
+        let run_result = command.run("../");
         self.progress.inc(1);
-        Ok(status.success())
+        run_result
     }
 
     fn run_edit(&self) -> anyhow::Result<RunResult> {
@@ -904,7 +915,8 @@ fn main_seq(args: &'static Args) {
                                     if !outpath.exists() {
                                         dir_builder.create(outpath).unwrap();
                                     }
-                                    assert!(config.compile_edit().unwrap());
+                                    let graph_loc = config.compile_edit().unwrap();
+                                    // TODO: Use graph_loc to do the rust property
                                     (version.0, (config, (None, vec![])))
                                 })
                                 .collect(),
@@ -1091,7 +1103,8 @@ fn main_par(args: &'static Args) {
                                     if !outpath.exists() {
                                         dir_builder.create(outpath).unwrap();
                                     }
-                                    assert!(config.compile_edit().unwrap());
+                                    let graph_loc = config.compile_edit().unwrap();
+                                    // TODO: Use graph_loc to do the rust property
                                     (version.0, (config, Mutex::new((None, vec![]))))
                                 })
                                 .collect(),
