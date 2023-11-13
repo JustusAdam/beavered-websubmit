@@ -18,7 +18,7 @@ use std::str::FromStr;
 
 use std::sync::{mpsc::channel, Arc, Mutex};
 
-use paralegal_policy::{GraphLocation, SPDGGenCommand};
+use paralegal_policy::GraphLocation;
 
 const CONFIGURATIONS: &[(Property, usize)] = &[
     (Property::Deletion, 3),
@@ -551,7 +551,7 @@ impl RunConfiguration {
             self.progress
                 .suspend(|| println!("Executing compile command: {:?}", command));
         }
-        let run_result = command.run("../");
+        let run_result = command.run(".");
         self.progress.inc(1);
         run_result
     }
