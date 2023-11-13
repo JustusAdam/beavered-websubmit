@@ -418,6 +418,8 @@ pub(crate) fn questions_submit(
 }
 #[paralegal::analyze]
 #[cfg_attr(feature = "v-ann-lib", paralegal::marker(request_generated, arguments = [0]))]
+#[cfg_attr(not(feature = "v-ann-lib"), paralegal::marker(auth_witness, arguments = [0]))]
+#[cfg_attr(not(feature = "v-ann-lib"), paralegal::marker(safe_source, arguments = [0]))]
 pub(crate) fn questions_submit_internal(
     apikey: ApiKey,
     num: u8,

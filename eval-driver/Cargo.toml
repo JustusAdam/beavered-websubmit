@@ -13,3 +13,4 @@ serde-lexpr = "0.1"
 humantime = "2"
 either = "1.8"
 anyhow = "1.0"
+paralegal-policy = { path = "../../paralegal/crates/paralegal-policy" }

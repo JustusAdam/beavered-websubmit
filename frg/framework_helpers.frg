@@ -11,14 +11,14 @@ fun all_recipients[f: CallSite, flow_set: set Src->CallArgument, labels_set: set
 
 fun all_scopes[f: Sink, labels_set: set Object->Label] : set Object {
 	labeled_objects[arguments[f.arg_call_site], scopes, labels_set] + {
-		arg : types.(labeled_objects[Type, safe_source, labels_set]) & FormalParameter | {
+		arg : labeled_objects[Object, safe_source, labels_set] & FormalParameter | {
 			some (f & Return)
 		}
 	}
 }
 
 pred some_authorized[principal: Src, labels_set: set Object->Label] {
-    some principal & types.(labeled_objects[Type, auth_witness, labels_set])
+    some principal & labeled_objects[Object, auth_witness, labels_set]
 }
 
 fun safe_sources[cs: Ctrl, flow: set Src->CallArgument, labels: set Object->Label] : set Object {

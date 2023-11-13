@@ -34,7 +34,7 @@ pred conclusion[t: Type, auth: one Object, cleanup: one Ctrl, flow: set Src->Sin
 // function on every value (or an equivalent type) that is ever stored.
 pred property[flow: set Src->Sink, labels: set Object->Label] {
     some cleanup : Ctrl |
-    some auth: labeled_objects[types[sources_of[cleanup]], auth_witness, labels] |
+    some auth: labeled_objects[sources_of[cleanup], auth_witness, labels] |
     all t: labeled_objects[Type, sensitive, labels] |
         premise[t, flow, labels]
         implies

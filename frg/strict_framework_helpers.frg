@@ -17,7 +17,7 @@ fun flow_roots[c: Ctrl, flow_set: set Src->CallArgument] : set Src->Sink {
 //     ^(flow_set + arg_call_site).(all_scopes[f, flow_set, labels_set]) & Src
 // }
 pred some_authorized[principal: Src, labels_set: set Object->Label] {
-    some principal & types.(labeled_objects[Type, auth_witness, labels_set])
+    some principal & labeled_objects[Object, auth_witness, labels_set]
 }
 
 fun direct_scopes[f: Sink, labels_set: set Object->Label] : set Object {
