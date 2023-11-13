@@ -67,6 +67,7 @@ struct Args {
     verbose_commands: bool,
 
     /// Version of the properties to run
+    #[clap(long)]
     property_versions: Vec<String>,
 
     /// Location of the WebSubmit repo
@@ -577,17 +578,23 @@ impl RunConfiguration {
     fn analysis_result_path(&self) -> std::path::PathBuf {
         self.forge_out_file("analysis-result")
     }
-    fn compile_edit(&self) -> anyhow::Result<GraphLocation> {
+    fn graph_loc_out_file(&self) -> std::path::PathBuf {
+        self.outpath().join("flow-graph.json")
+    }
+    fn compile_edit(&self) -> anyhow::Result<()> {
         use std::process::*;
         let (version, _) = self.version;
 
         let result_file_path = self.analysis_result_path();
+        let graph_loc_path = self.graph_loc_out_file();
         let mut command = paralegal_policy::SPDGGenCommand::global();
         command
             .get_command()
             .args([
                 "--result-path",
                 &result_file_path.to_string_lossy(),
+                "--graph-loc-path",
+                &graph_loc_path.to_string_lossy(),
                 "--model-version",
                 "v2",
                 "--inline-elision",
@@ -619,36 +626,34 @@ impl RunConfiguration {
             self.progress
                 .suspend(|| println!("Executing compile command: {:?}", command));
         }
-        let run_result = command.run(".");
+        command.run(".")?;
         self.progress.inc(1);
-        run_result
+        Ok(())
     }
 
-    fn run_edit(
-        &self,
-        compile_result: &Result<GraphLocation, anyhow::Error>,
-    ) -> anyhow::Result<RunResult> {
-        let graph_loc = match compile_result {
-            Ok(gl) => gl,
-            Err(_) => return Ok(RunResult::CompilationError),
+    fn run_edit(&self, compile_result: &Result<(), anyhow::Error>) -> anyhow::Result<RunResult> {
+        if let Err(_) = compile_result {
+            return Ok(RunResult::CompilationError);
         };
 
         let results = match self.args.prop_type {
             Some(prop_type) => match prop_type {
-                PropType::Rust => vec![(PropType::Rust, self.run_rust_prop(graph_loc)?)],
+                PropType::Rust => vec![(PropType::Rust, self.run_rust_prop()?)],
                 PropType::Forge => vec![(PropType::Forge, self.run_forge_prop()?)],
             },
             None => vec![
                 (PropType::Forge, self.run_forge_prop()?),
-                (PropType::Rust, self.run_rust_prop(graph_loc)?),
+                (PropType::Rust, self.run_rust_prop()?),
             ],
         };
         Ok(RunResult::CheckResult(results))
     }
 
-    fn run_rust_prop(&self, gl: &GraphLocation) -> anyhow::Result<CheckResult> {
+    fn run_rust_prop(&self) -> anyhow::Result<CheckResult> {
+        let gl = GraphLocation::custom(self.graph_loc_out_file());
         let now = std::time::Instant::now();
         match self.typ {
+            // use downcast on the error to recover the original?
             Property::Deletion => {
                 if gl.with_context(run_del_policy)? {
                     Ok(CheckResult::Success(now.elapsed()))
@@ -678,7 +683,7 @@ impl RunConfiguration {
         use std::process::*;
         let check_file_path = self.forge_out_file("check");
         {
-            use std::io::{Read, Write};
+            use std::io::Write;
             let mut w = std::fs::OpenOptions::new()
                 .truncate(true)
                 .write(true)
@@ -824,10 +829,7 @@ type ResultPayload = (Option<RunResult>, Vec<(&'static str, ErrMsgResult)>);
 
 type ResultTable<T> = HashMap<
     Property,
-    HashMap<
-        Option<Edit>,
-        HashMap<&'static str, (RunConfiguration, Result<GraphLocation, Error>, T)>,
-    >,
+    HashMap<Option<Edit>, HashMap<&'static str, (RunConfiguration, Result<(), Error>, T)>>,
 >;
 
 type ParResultTable = ResultTable<Mutex<ResultPayload>>;
@@ -855,13 +857,13 @@ fn print_results_for_property<
         false_positives.resize(num_versions, 0);
 
         write!(w, " {:HEAD_CELL_WIDTH$} ", typ.to_string(),)?;
-        write!(w, "| {:BODY_CELL_WIDTH$} ", "expected")?;
+        write!(w, "| {:HEAD_CELL_WIDTH$} ", "expected")?;
         for (version, _) in property_versions.iter() {
             write!(w, "| {:BODY_CELL_WIDTH$} ", version)?
         }
         writeln!(w, "")?;
-        write!(w, "-{:-<HEAD_CELL_WIDTH$}-", "")?;
-        for _ in 0..property_versions.len() + 1 {
+        write!(w, "-{:-<HEAD_CELL_WIDTH$}-+-{:-<HEAD_CELL_WIDTH$}-", "", "")?;
+        for _ in 0..property_versions.len() {
             write!(w, "+-{:-<BODY_CELL_WIDTH$}-", "")?
         }
         writeln!(w, "")?;
@@ -872,7 +874,7 @@ fn print_results_for_property<
             write!(w, " {:HEAD_CELL_WIDTH$} ", edit_str)?;
             write!(
                 w,
-                "| {:^BODY_CELL_WIDTH$} ",
+                "| {:^HEAD_CELL_WIDTH$} ",
                 if let Some(edit) = &edit {
                     edit.severity.expected_emoji()
                 } else {
@@ -891,20 +893,20 @@ fn print_results_for_property<
             }
             writeln!(w, "")?;
         }
-        write!(w, "-{:-<HEAD_CELL_WIDTH$}-", "")?;
-        for _ in 0..property_versions.len() + 1 {
+        write!(w, "-{:-<HEAD_CELL_WIDTH$}-+-{:-<HEAD_CELL_WIDTH$}-", "", "")?;
+        for _ in 0..property_versions.len() {
             write!(w, "+-{:-<BODY_CELL_WIDTH$}-", "")?
         }
         writeln!(w, "")?;
 
         write!(w, " {:HEAD_CELL_WIDTH$} ", "false neg")?;
-        write!(w, "| {:^BODY_CELL_WIDTH$} ", "-")?;
+        write!(w, "| {:^HEAD_CELL_WIDTH$} ", "-")?;
         for p in false_negatives {
             write!(w, "| {:^BODY_CELL_WIDTH$} ", p)?;
         }
         writeln!(w, "")?;
         write!(w, " {:HEAD_CELL_WIDTH$} ", "false pos")?;
-        write!(w, "| {:^BODY_CELL_WIDTH$} ", "-")?;
+        write!(w, "| {:^HEAD_CELL_WIDTH$} ", "-")?;
         for p in false_positives {
             write!(w, "| {:^BODY_CELL_WIDTH$} ", p)?;
         }
