@@ -16,8 +16,6 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 /// (username, apikey)
-#[cfg_attr(not(feature = "v-ann-lib"), paralegal::marker(auth_witness))]
-#[cfg_attr(not(feature = "v-ann-lib"), paralegal::marker(safe_source))]
 #[derive(Clone)]
 pub(crate) struct ApiKey {
     pub user: String,

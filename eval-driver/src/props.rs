@@ -1,7 +1,7 @@
 extern crate anyhow;
 use std::sync::Arc;
 
-use anyhow::{anyhow, bail, Result};
+use anyhow::Result;
 
 use paralegal_policy::{assert_error, paralegal_spdg::Identifier, Context, Marker, PolicyContext};
 
@@ -74,7 +74,7 @@ impl DeletionProp {
             )
         }
 
-        return Ok(found_deleter);
+        Ok(found_deleter)
     }
 }
 
@@ -126,7 +126,11 @@ impl ScopedStorageProp {
                                     *scope,
                                     store_callsite,
                                     paralegal_policy::EdgeType::Data,
-                                )
+                                ) &&
+								self.cx.influencers(
+									*scope,
+									paralegal_policy::EdgeType::Data
+								).any(|i| self.cx.has_marker(marker!(auth_witness), i))
                             });
                             assert_error!(
                                 self.cx,
@@ -155,7 +159,7 @@ impl ScopedStorageProp {
                 return Ok(controller_valid);
             }
         }
-        return Ok(true);
+        Ok(true)
     }
 }
 
@@ -180,7 +184,7 @@ impl AuthDisclosureProp {
             // All srcs that have no influencers
             let roots = self
                 .cx
-                .roots(*c_id, paralegal_policy::EdgeType::DataAndControl)
+                .roots(*c_id, paralegal_policy::EdgeType::Data)
                 .collect::<Vec<_>>();
 
             let safe_scopes = self
