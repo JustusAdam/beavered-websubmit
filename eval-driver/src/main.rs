@@ -628,7 +628,7 @@ impl RunConfiguration {
             self.progress
                 .suspend(|| println!("Executing compile command: {:?}", command));
         }
-        let run_result = command.run("../");
+        let run_result = command.run(".");
         self.progress.inc(1);
         run_result
     }
