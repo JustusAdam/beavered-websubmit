@@ -1,7 +1,7 @@
 extern crate anyhow;
 use std::sync::Arc;
 
-use anyhow::Result;
+use anyhow::{bail, Result};
 
 use paralegal_policy::{assert_error, paralegal_spdg::Identifier, Context, Marker, PolicyContext};
 
@@ -76,11 +76,25 @@ impl DeletionProp {
 
         Ok(())
     }
+
+    pub fn check_lib(self) -> Result<()> {
+        todo!()
+    }
+
+    pub fn check_strict(self) -> Result<()> {
+        todo!()
+    }
 }
 
-pub fn run_del_policy(ctx: Arc<Context>) -> Result<()> {
+pub fn run_del_policy(ctx: Arc<Context>, version: &str) -> Result<()> {
     ctx.named_policy(Identifier::new_intern("Deletion"), |ctx| {
-        DeletionProp::new(ctx).check()
+        let prop = DeletionProp::new(ctx);
+        match version {
+            "lib" => prop.check_lib(),
+            "baseline" => prop.check(),
+            "strict" => prop.check_strict(),
+            other => bail!("version {} does not exist", other),
+        }
     })
 }
 
@@ -157,11 +171,25 @@ impl ScopedStorageProp {
         }
         Ok(())
     }
+
+    pub fn check_lib(self) -> Result<()> {
+        todo!()
+    }
+
+    pub fn check_strict(self) -> Result<()> {
+        todo!()
+    }
 }
 
-pub fn run_sc_policy(ctx: Arc<Context>) -> Result<()> {
+pub fn run_sc_policy(ctx: Arc<Context>, version: &str) -> Result<()> {
     ctx.named_policy(Identifier::new_intern("Scoped Storage"), |ctx| {
-        ScopedStorageProp::new(ctx).check()
+        let prop = ScopedStorageProp::new(ctx);
+        match version {
+            "lib" => prop.check_lib(),
+            "baseline" => prop.check(),
+            "strict" => prop.check_strict(),
+            other => bail!("version {} does not exist", other),
+        }
     })
 }
 
@@ -267,10 +295,24 @@ impl AuthDisclosureProp {
         }
         Ok(())
     }
+
+    pub fn check_lib(self) -> Result<()> {
+        todo!()
+    }
+
+    pub fn check_strict(self) -> Result<()> {
+        self.check()
+    }
 }
 
-pub fn run_dis_policy(ctx: Arc<Context>) -> Result<()> {
+pub fn run_dis_policy(ctx: Arc<Context>, version: &str) -> Result<()> {
     ctx.named_policy(Identifier::new_intern("Authorized Disclosure"), |ctx| {
-        AuthDisclosureProp::new(ctx).check()
+        let prop = AuthDisclosureProp::new(ctx);
+        match version {
+            "lib" => prop.check_lib(),
+            "baseline" => prop.check(),
+            "strict" => prop.check_strict(),
+            other => bail!("version {} does not exist", other),
+        }
     })
 }

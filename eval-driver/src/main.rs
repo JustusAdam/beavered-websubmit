@@ -670,7 +670,7 @@ impl RunConfiguration {
             Property::Storage => run_sc_policy,
             Property::Disclosure => run_dis_policy,
         };
-        prop(ctx.clone())?;
+        prop(ctx.clone(), self.version.0)?;
         let passed = if self.verbose() {
             self.progress
                 .suspend(|| ctx.emit_diagnostics(std::io::stdout()))?
