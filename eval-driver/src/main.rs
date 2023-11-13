@@ -20,7 +20,7 @@ use std::collections::HashSet;
 use std::fmt::{Display, Write};
 use std::str::FromStr;
 
-use std::sync::{mpsc::channel, Arc, Mutex};
+use std::sync::{Arc, Mutex};
 
 use paralegal_policy::GraphLocation;
 
@@ -650,36 +650,44 @@ impl RunConfiguration {
     }
 
     fn run_rust_prop(&self) -> anyhow::Result<CheckResult> {
-        let gl = GraphLocation::custom(self.graph_loc_out_file());
         let now = std::time::Instant::now();
-        match self.typ {
-            // use downcast on the error to recover the original?
-            Property::Deletion => {
-                if gl.with_context(run_del_policy)? {
-                    Ok(CheckResult::Success(now.elapsed()))
-                } else {
-                    Ok(CheckResult::Error(now.elapsed()))
-                }
+
+        let gl = GraphLocation::custom(self.graph_loc_out_file());
+        let ctx = Arc::new(gl.build_context()?);
+        if self.verbose_commands() {
+            self.progress
+                .suspend(|| println!("Executing check for forge property"));
+        }
+        if self.verbose() {
+            if ctx.desc().controllers.is_empty() {
+                self.progress.suspend(|| {
+                    println!("No controllers found. Your policy is likely to be vacuous.")
+                });
             }
-            Property::Storage => {
-                if gl.with_context(run_sc_policy)? {
-                    Ok(CheckResult::Success(now.elapsed()))
-                } else {
-                    Ok(CheckResult::Error(now.elapsed()))
-                }
-            }
-            Property::Disclosure => {
-                if gl.with_context(run_dis_policy)? {
-                    Ok(CheckResult::Success(now.elapsed()))
-                } else {
-                    Ok(CheckResult::Error(now.elapsed()))
-                }
-            }
+        }
+        let prop = match self.typ {
+            Property::Deletion => run_del_policy,
+            Property::Storage => run_sc_policy,
+            Property::Disclosure => run_dis_policy,
+        };
+        prop(ctx.clone())?;
+        let passed = if self.verbose() {
+            self.progress
+                .suspend(|| ctx.emit_diagnostics(std::io::stdout()))?
+        } else {
+            ctx.emit_diagnostics(std::io::sink())?
+        };
+
+        if passed {
+            Ok(CheckResult::Success(now.elapsed()))
+        } else {
+            Ok(CheckResult::Error(now.elapsed()))
         }
     }
 
     fn run_forge_prop(&self) -> anyhow::Result<CheckResult> {
         let now = std::time::Instant::now();
+
         use std::process::*;
         let check_file_path = self.forge_out_file("check");
         {
