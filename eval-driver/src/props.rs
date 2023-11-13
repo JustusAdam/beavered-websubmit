@@ -177,7 +177,7 @@ impl ScopedStorageProp {
     }
 
     pub fn check_strict(self) -> Result<()> {
-        todo!()
+        self.check()
     }
 }
 

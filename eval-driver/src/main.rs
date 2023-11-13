@@ -579,7 +579,8 @@ impl RunConfiguration {
         self.forge_out_file("analysis-result")
     }
     fn graph_loc_out_file(&self) -> std::path::PathBuf {
-        self.outpath().join("flow-graph.json")
+        self.outpath()
+            .join(format!("{}-flow-graph.json", self.version.0))
     }
     fn compile_edit(&self) -> anyhow::Result<()> {
         use std::process::*;
