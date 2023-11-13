@@ -5,11 +5,15 @@ extern crate clap;
 extern crate either;
 extern crate humantime;
 extern crate indicatif;
+use anyhow::Error;
 use clap::Parser;
 
 use either::Either;
 
 use indicatif::ProgressBar;
+use props::run_del_policy;
+use props::run_dis_policy;
+use props::run_sc_policy;
 
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -18,7 +22,9 @@ use std::str::FromStr;
 
 use std::sync::{mpsc::channel, Arc, Mutex};
 
-use paralegal_policy::{GraphLocation, SPDGGenCommand};
+use paralegal_policy::GraphLocation;
+
+mod props;
 
 const CONFIGURATIONS: &[(Property, usize)] = &[
     (Property::Deletion, 3),
@@ -100,6 +106,10 @@ struct Args {
 
     #[clap(long, default_value_t = 1)]
     parallelism: usize,
+
+    /// Select what kind of property type (Rust or Forge) to run.
+    #[clap(long)]
+    prop_type: Option<PropType>,
 }
 
 impl Args {
@@ -146,10 +156,10 @@ enum Severity {
 }
 
 impl Severity {
-    fn expected_result(self, result: &RunResult) -> bool {
+    fn expected_result(self, result: &CheckResult) -> bool {
         match self {
-            Severity::Benign => matches!(result, RunResult::Success(_)),
-            Severity::Bug | Severity::Intentional => matches!(result, RunResult::CheckError(_)),
+            Severity::Benign => matches!(result, CheckResult::Success(_)),
+            Severity::Bug | Severity::Intentional => matches!(result, CheckResult::Error(_)),
         }
     }
 
@@ -227,14 +237,77 @@ impl Display for Edit {
     }
 }
 
-use std::time::Duration;
+#[derive(Clone, Copy, Eq, PartialEq, Hash, PartialOrd, Ord)]
+enum PropType {
+    Rust,
+    Forge,
+}
 
+impl Display for PropType {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        formatter.write_str(match self {
+            PropType::Rust => "r",
+            PropType::Forge => "f",
+        })
+    }
+}
+
+impl FromStr for PropType {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "rust" => Ok(PropType::Rust),
+            "forge" => Ok(PropType::Forge),
+            _ => Err(format!("Unrecognized severity type {s}")),
+        }
+    }
+}
+
+use std::time::Duration;
 #[derive(Clone, Copy)]
-enum RunResult {
+enum CheckResult {
     Success(Duration),
-    CompilationError,
-    CheckError(Duration),
+    Error(Duration),
     Timeout,
+}
+
+impl std::fmt::Display for CheckResult {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        use std::fmt::Alignment;
+        let width = formatter.width().unwrap_or(2);
+        let selfstr = match self {
+            CheckResult::Success(dur) => format!("✅ ({})", humantime::format_duration(*dur)),
+            CheckResult::Error(dur) => format!("❌ ({})", humantime::format_duration(*dur)),
+            CheckResult::Timeout => "⏲".to_string(),
+        };
+        let selfwidth = selfstr.len();
+        let (before, after) = match formatter.align() {
+            None => (0, width - selfwidth),
+            _ if width < selfwidth => (0, 0),
+            Some(Alignment::Left) => (0, width - selfwidth),
+            Some(Alignment::Right) => (width - selfwidth, 0),
+            Some(Alignment::Center) => {
+                let left = (width - selfwidth) / 2;
+                (left, width - selfwidth - left)
+            }
+        };
+        let fill_chr = formatter.fill();
+        for _ in 0..before {
+            formatter.write_char(fill_chr)?;
+        }
+        formatter.write_str(&selfstr)?;
+        for _ in 0..after {
+            formatter.write_char(fill_chr)?;
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone)]
+enum RunResult {
+    CompilationError,
+    CheckResult(Vec<(PropType, CheckResult)>),
 }
 
 impl std::fmt::Display for RunResult {
@@ -242,10 +315,14 @@ impl std::fmt::Display for RunResult {
         use std::fmt::Alignment;
         let width = formatter.width().unwrap_or(2);
         let selfstr = match self {
-            RunResult::Success(dur) => format!("✅ ({})", humantime::format_duration(*dur)),
             RunResult::CompilationError => "️🚧".to_string(),
-            RunResult::CheckError(dur) => format!("❌ ({})", humantime::format_duration(*dur)),
-            RunResult::Timeout => "⏲".to_string(),
+            RunResult::CheckResult(results) => {
+                let mut s = String::new();
+                for (prop_type, r) in results {
+                    s.push_str(format!("{}: {},", prop_type, r).as_str())
+                }
+                s
+            }
         };
         let selfwidth = selfstr.len();
         let (before, after) = match formatter.align() {
@@ -556,7 +633,56 @@ impl RunConfiguration {
         run_result
     }
 
-    fn run_edit(&self) -> anyhow::Result<RunResult> {
+    fn run_edit(
+        &self,
+        compile_result: &Result<GraphLocation, anyhow::Error>,
+    ) -> anyhow::Result<RunResult> {
+        let graph_loc = match compile_result {
+            Ok(gl) => gl,
+            Err(_) => return Ok(RunResult::CompilationError),
+        };
+
+        let results = match self.args.prop_type {
+            Some(prop_type) => match prop_type {
+                PropType::Rust => vec![(PropType::Rust, self.run_rust_prop(graph_loc)?)],
+                PropType::Forge => vec![(PropType::Forge, self.run_forge_prop()?)],
+            },
+            None => vec![
+                (PropType::Forge, self.run_forge_prop()?),
+                (PropType::Rust, self.run_rust_prop(graph_loc)?),
+            ],
+        };
+        Ok(RunResult::CheckResult(results))
+    }
+
+    fn run_rust_prop(&self, gl: &GraphLocation) -> anyhow::Result<CheckResult> {
+        let now = std::time::Instant::now();
+        match self.typ {
+            Property::Deletion => {
+                if gl.with_context(run_del_policy)? {
+                    Ok(CheckResult::Success(now.elapsed()))
+                } else {
+                    Ok(CheckResult::Error(now.elapsed()))
+                }
+            }
+            Property::Storage => {
+                if gl.with_context(run_sc_policy)? {
+                    Ok(CheckResult::Success(now.elapsed()))
+                } else {
+                    Ok(CheckResult::Error(now.elapsed()))
+                }
+            }
+            Property::Disclosure => {
+                if gl.with_context(run_dis_policy)? {
+                    Ok(CheckResult::Success(now.elapsed()))
+                } else {
+                    Ok(CheckResult::Error(now.elapsed()))
+                }
+            }
+        }
+    }
+
+    fn run_forge_prop(&self) -> anyhow::Result<CheckResult> {
         let now = std::time::Instant::now();
         use std::process::*;
         let check_file_path = self.forge_out_file("check");
@@ -588,11 +714,11 @@ impl RunConfiguration {
         }
         let status = wait_with_timeout(self.check_timeout(), &mut racket_cmd.spawn()?)?;
         self.progress.inc(1);
-        status.map_or(Ok(RunResult::Timeout), |status| {
+        status.map_or(Ok(CheckResult::Timeout), |status| {
             if status.success() {
-                Ok(RunResult::Success(now.elapsed()))
+                Ok(CheckResult::Success(now.elapsed()))
             } else {
-                Ok(RunResult::CheckError(now.elapsed()))
+                Ok(CheckResult::Error(now.elapsed()))
             }
         })
     }
@@ -705,8 +831,13 @@ impl RunConfiguration {
 
 type ResultPayload = (Option<RunResult>, Vec<(&'static str, ErrMsgResult)>);
 
-type ResultTable<T> =
-    HashMap<Property, HashMap<Option<Edit>, HashMap<&'static str, (RunConfiguration, T)>>>;
+type ResultTable<T> = HashMap<
+    Property,
+    HashMap<
+        Option<Edit>,
+        HashMap<&'static str, (RunConfiguration, Result<GraphLocation, Error>, T)>,
+    >,
+>;
 
 type ParResultTable = ResultTable<Mutex<ResultPayload>>;
 
@@ -717,7 +848,7 @@ const body_cell_width: usize = 30;
 
 fn print_results_for_property<
     T,
-    F: FnMut(&mut W, &Option<Edit>, &T) -> std::io::Result<ResultClassification>,
+    F: FnMut(&mut W, &Option<Edit>, &T) -> std::io::Result<Vec<ResultClassification>>,
     W: std::io::Write,
 >(
     mut w: W,
@@ -758,11 +889,13 @@ fn print_results_for_property<
                 }
             )?;
             for (i, (version, _)) in property_versions.iter().enumerate() {
-                let (_, mutex) = versions.get(version).unwrap();
-                match f(&mut w, edit, mutex)? {
-                    ResultClassification::FalsePositive => false_positives[i] += 1,
-                    ResultClassification::FalseNegative => false_negatives[i] += 1,
-                    ResultClassification::Uninteresting => (),
+                let (_, _, mutex) = versions.get(version).unwrap();
+                for r in f(&mut w, edit, mutex)? {
+                    match r {
+                        ResultClassification::FalsePositive => false_positives[i] += 1,
+                        ResultClassification::FalseNegative => false_negatives[i] += 1,
+                        ResultClassification::Uninteresting => (),
+                    }
                 }
             }
             writeln!(w, "")?;
@@ -802,7 +935,7 @@ fn main() {
     if args.parallelism == 1 {
         main_seq(args);
     } else {
-        main_par(args);
+        // main_par(args);
     }
 }
 
@@ -915,9 +1048,8 @@ fn main_seq(args: &'static Args) {
                                     if !outpath.exists() {
                                         dir_builder.create(outpath).unwrap();
                                     }
-                                    let graph_loc = config.compile_edit().unwrap();
-                                    // TODO: Use graph_loc to do the rust property
-                                    (version.0, (config, (None, vec![])))
+                                    let compile_result = config.compile_edit();
+                                    (version.0, (config, compile_result, (None, vec![])))
                                 })
                                 .collect(),
                         )
@@ -929,8 +1061,11 @@ fn main_seq(args: &'static Args) {
 
     for t in results.values_mut() {
         for e in t.values_mut() {
-            for (config, results) in e.values_mut() {
-                assert!(results.0.replace(config.run_edit().unwrap()).is_none());
+            for (config, compile_result, results) in e.values_mut() {
+                assert!(results
+                    .0
+                    .replace(config.run_edit(compile_result).unwrap())
+                    .is_none());
             }
         }
     }
@@ -942,19 +1077,33 @@ fn main_seq(args: &'static Args) {
         &results,
         |w, edit, result| {
             use std::io::Write;
-            let run_result = result.0.unwrap();
-            let was_expected = if let Some(edit) = edit {
-                edit.severity.expected_result(&run_result)
-            } else {
-                matches!(run_result, RunResult::Success(_))
-            };
+            let run_result = result.0.as_ref().unwrap();
+
             write!(w, "| {:^body_cell_width$} ", run_result)?;
 
-            Ok(match run_result {
-                RunResult::CheckError(_) if !was_expected => ResultClassification::FalsePositive,
-                RunResult::Success(_) if !was_expected => ResultClassification::FalseNegative,
-                _ => ResultClassification::Uninteresting,
-            })
+            match run_result {
+                RunResult::CompilationError => Ok(vec![ResultClassification::Uninteresting]),
+                RunResult::CheckResult(results) => Ok(results
+                    .iter()
+                    .map(|(_, check_result)| {
+                        let was_expected = if let Some(edit) = edit {
+                            edit.severity.expected_result(&check_result)
+                        } else {
+                            matches!(check_result, CheckResult::Success(_))
+                        };
+
+                        match check_result {
+                            CheckResult::Error(_) if !was_expected => {
+                                ResultClassification::FalsePositive
+                            }
+                            CheckResult::Success(_) if !was_expected => {
+                                ResultClassification::FalseNegative
+                            }
+                            _ => ResultClassification::Uninteresting,
+                        }
+                    })
+                    .collect::<Vec<_>>()),
+            }
         },
     )
     .unwrap();
@@ -962,14 +1111,22 @@ fn main_seq(args: &'static Args) {
 
     for t in results.values_mut() {
         for e in t.values_mut() {
-            for (config, mutex) in e.values_mut() {
-                if matches!(mutex.0.unwrap(), RunResult::CheckError(_)) {
-                    for emv in error_message_versions.iter() {
-                        let emvresult = config.run_error_msg(emv).unwrap();
-                        progress.inc(1);
-                        mutex.1.push((emv, emvresult));
+            for (config, _, mutex) in e.values_mut() {
+                let mut ran_emvs = false;
+                if let RunResult::CheckResult(v) = mutex.0.as_ref().unwrap() {
+                    for check_result in v {
+                        if matches!(check_result, (PropType::Forge, CheckResult::Error(_))) {
+                            for emv in error_message_versions.iter() {
+                                let emvresult = config.run_error_msg(emv).unwrap();
+                                progress.inc(1);
+                                mutex.1.push((emv, emvresult));
+                                ran_emvs = true;
+                            }
+                        }
                     }
-                } else {
+                }
+
+                if !ran_emvs {
                     progress.inc(error_message_versions.len() as u64);
                 }
             }
@@ -978,12 +1135,16 @@ fn main_seq(args: &'static Args) {
 
     for type_results in results.values() {
         for edit_results in type_results.values() {
-            for (config, result) in edit_results.values() {
-                if matches!(result.0, Some(RunResult::CheckError(_))) {
-                    for (emv, result) in result.1.iter() {
-                        progress.suspend(|| {
-                            writeln!(w, "{}: {emv} {result}", config.describe()).unwrap();
-                        });
+            for (config, _, result) in edit_results.values() {
+                if let Some(RunResult::CheckResult(v)) = &result.0 {
+                    for check_result in v {
+                        if matches!(check_result, (PropType::Forge, CheckResult::Error(_))) {
+                            for (emv, result) in result.1.iter() {
+                                progress.suspend(|| {
+                                    writeln!(w, "{}: {emv} {result}", config.describe()).unwrap();
+                                });
+                            }
+                        }
                     }
                 }
             }
@@ -992,278 +1153,285 @@ fn main_seq(args: &'static Args) {
     progress.finish_and_clear();
 }
 
-fn main_par(args: &'static Args) {
-    use std::io::Write;
-    let property_versions: Vec<_> = if args.property_versions.is_empty() {
-        println!("INFO: No specification variants to run given, running all known ones");
-        ALL_KNOWN_VARIANTS.to_vec()
-    } else {
-        ALL_KNOWN_VARIANTS
-            .iter()
-            .cloned()
-            .filter(|v| args.property_versions.iter().any(|e| e.as_str() == v.0))
-            .collect()
-    };
+// fn main_par(args: &'static Args) {
+// use std::io::Write;
+// let property_versions: Vec<_> = if args.property_versions.is_empty() {
+//     println!("INFO: No specification variants to run given, running all known ones");
+//     ALL_KNOWN_VARIANTS.to_vec()
+// } else {
+//     ALL_KNOWN_VARIANTS
+//         .iter()
+//         .cloned()
+//         .filter(|v| args.property_versions.iter().any(|e| e.as_str() == v.0))
+//         .collect()
+// };
 
-    let error_message_versions: Vec<_> = if let Some(v) = args.error_message_versions.as_ref() {
-        let str_refs = v.iter().map(String::as_str).collect::<Vec<_>>();
-        if let ["none"] = str_refs.as_slice() {
-            vec![]
-        } else if let Some(e) = str_refs.iter().find(|r| !ERR_MSG_VERSIONS.contains(r)) {
-            panic!("Unknown error message version {e}");
-        } else {
-            str_refs
-        }
-    } else {
-        ERR_MSG_VERSIONS.to_vec()
-    };
+// let error_message_versions: Vec<_> = if let Some(v) = args.error_message_versions.as_ref() {
+//     let str_refs = v.iter().map(String::as_str).collect::<Vec<_>>();
+//     if let ["none"] = str_refs.as_slice() {
+//         vec![]
+//     } else if let Some(e) = str_refs.iter().find(|r| !ERR_MSG_VERSIONS.contains(r)) {
+//         panic!("Unknown error message version {e}");
+//     } else {
+//         str_refs
+//     }
+// } else {
+//     ERR_MSG_VERSIONS.to_vec()
+// };
 
-    let ref is_selected = {
-        let as_ref_v = args
-            .only
-            .as_ref()
-            .map(|v| v.iter().cloned().collect::<HashSet<Edit>>());
-        let args_ref = &args;
-        move |s: &Edit| !args_ref.no_edits && as_ref_v.as_ref().map_or(true, |v| v.contains(s))
-    };
+// let ref is_selected = {
+//     let as_ref_v = args
+//         .only
+//         .as_ref()
+//         .map(|v| v.iter().cloned().collect::<HashSet<Edit>>());
+//     let args_ref = &args;
+//     move |s: &Edit| !args_ref.no_edits && as_ref_v.as_ref().map_or(true, |v| v.contains(s))
+// };
 
-    let num_versions = property_versions.len();
+// let num_versions = property_versions.len();
 
-    let configurations: Vec<(_, Vec<_>)> = CONFIGURATIONS
-        .iter()
-        .filter(|conf| {
-            args.only_property
-                .as_ref()
-                .map_or(true, |p| p.contains(&conf.0))
-        })
-        .flat_map(|&(property, num_edits)| {
-            assert!(num_edits > 0);
-            let new_edits = (1..=num_edits)
-                .flat_map(|articulation_point| {
-                    [Severity::Benign, Severity::Bug, Severity::Intentional]
-                        .into_iter()
-                        .map(move |severity| Edit {
-                            severity,
-                            articulation_point,
-                            property,
-                        })
-                        .filter(|e| is_selected(e))
-                })
-                .collect::<Vec<_>>();
-            (args.no_edits || !new_edits.is_empty()).then_some((property, new_edits))
-        })
-        .collect();
+// let configurations: Vec<(_, Vec<_>)> = CONFIGURATIONS
+//     .iter()
+//     .filter(|conf| {
+//         args.only_property
+//             .as_ref()
+//             .map_or(true, |p| p.contains(&conf.0))
+//     })
+//     .flat_map(|&(property, num_edits)| {
+//         assert!(num_edits > 0);
+//         let new_edits = (1..=num_edits)
+//             .flat_map(|articulation_point| {
+//                 [Severity::Benign, Severity::Bug, Severity::Intentional]
+//                     .into_iter()
+//                     .map(move |severity| Edit {
+//                         severity,
+//                         articulation_point,
+//                         property,
+//                     })
+//                     .filter(|e| is_selected(e))
+//             })
+//             .collect::<Vec<_>>();
+//         (args.no_edits || !new_edits.is_empty()).then_some((property, new_edits))
+//     })
+//     .collect();
 
-    let num_configurations = configurations
-        .iter()
-        .map(
-            |(_, inner)| inner.len() + 1, // default (no edits)
-        )
-        .sum::<usize>()
-        * (2 * num_versions // compile + prop check
-           + num_versions * error_message_versions.len());
+// let num_configurations = configurations
+//     .iter()
+//     .map(
+//         |(_, inner)| inner.len() + 1, // default (no edits)
+//     )
+//     .sum::<usize>()
+//     * (2 * num_versions // compile + prop check
+//        + num_versions * error_message_versions.len());
 
-    let mut progress = Box::leak::<'static>(Box::new(
-        ProgressBar::new(num_configurations as u64).with_style(
-            indicatif::ProgressStyle::default_bar()
-                .template("{msg:11} {bar:40} {pos:>3}/{len:3}")
-                .unwrap(),
-        ),
-    ));
+// let mut progress = Box::leak::<'static>(Box::new(
+//     ProgressBar::new(num_configurations as u64).with_style(
+//         indicatif::ProgressStyle::default_bar()
+//             .template("{msg:11} {bar:40} {pos:>3}/{len:3}")
+//             .unwrap(),
+//     ),
+// ));
 
-    let mut w = std::io::stdout();
-    let mut dir_builder = std::fs::DirBuilder::new();
-    dir_builder.recursive(true);
-    let results: ParResultTable = configurations
-        .into_iter()
-        .map(|(typ, edits)| {
-            (
-                typ,
-                edits
-                    .iter()
-                    .copied()
-                    .map(Some)
-                    .chain([None])
-                    .map(|edit| {
-                        progress.set_message(edit.map_or("default".to_string(), |e| e.to_string()));
-                        (
-                            edit,
-                            property_versions
-                                .iter()
-                                .map(|&version| {
-                                    assert!(edit.as_ref().map_or(true, |e| e.property == typ));
-                                    let config = RunConfiguration {
-                                        typ,
-                                        version,
-                                        edit,
-                                        progress,
-                                        args,
-                                    };
-                                    let outpath = config.outpath();
-                                    if !outpath.exists() {
-                                        dir_builder.create(outpath).unwrap();
-                                    }
-                                    let graph_loc = config.compile_edit().unwrap();
-                                    // TODO: Use graph_loc to do the rust property
-                                    (version.0, (config, Mutex::new((None, vec![]))))
-                                })
-                                .collect(),
-                        )
-                    })
-                    .collect(),
-            )
-        })
-        .collect();
+// let mut w = std::io::stdout();
+// let mut dir_builder = std::fs::DirBuilder::new();
+// dir_builder.recursive(true);
+// let results: ParResultTable = configurations
+//     .into_iter()
+//     .map(|(typ, edits)| {
+//         (
+//             typ,
+//             edits
+//                 .iter()
+//                 .copied()
+//                 .map(Some)
+//                 .chain([None])
+//                 .map(|edit| {
+//                     progress.set_message(edit.map_or("default".to_string(), |e| e.to_string()));
+//                     (
+//                         edit,
+//                         property_versions
+//                             .iter()
+//                             .map(|&version| {
+//                                 assert!(edit.as_ref().map_or(true, |e| e.property == typ));
+//                                 let config = RunConfiguration {
+//                                     typ,
+//                                     version,
+//                                     edit,
+//                                     progress,
+//                                     args,
+//                                 };
+//                                 let outpath = config.outpath();
+//                                 if !outpath.exists() {
+//                                     dir_builder.create(outpath).unwrap();
+//                                 }
+//                                 let compile_result = config.compile_edit();
+//                                 (
+//                                     version.0,
+//                                     (config, compile_result, Mutex::new((None, vec![]))),
+//                                 )
+//                             })
+//                             .collect(),
+//                     )
+//                 })
+//                 .collect(),
+//         )
+//     })
+//     .collect();
 
-    std::thread::scope(|scope| {
-        let (send_work, receive_work) = channel();
+// std::thread::scope(|scope| {
+//     let (send_work, receive_work) = channel();
 
-        for t in results.values() {
-            for e in t.values() {
-                for descr in e.values() {
-                    send_work.send(descr).unwrap()
-                }
-            }
-        }
+//     for t in results.values() {
+//         for e in t.values() {
+//             for descr in e.values() {
+//                 send_work.send(descr).unwrap()
+//             }
+//         }
+//     }
 
-        let receive_work = Arc::new(Mutex::new(receive_work));
+//     let receive_work = Arc::new(Mutex::new(receive_work));
 
-        for _ in 0..args.parallelism {
-            let my_receive = receive_work.clone();
-            let my_results_ref = &results;
-            std::thread::Builder::new()
-                .spawn_scoped(scope, move || {
-                    while let Some((config, mutex)) =
-                        my_receive.lock().ok().and_then(|r| r.recv().ok())
-                    {
-                        let mut guard = mutex.try_lock().unwrap();
-                        assert!(guard.0.replace(config.run_edit().unwrap()).is_none());
-                    }
-                })
-                .unwrap();
-        }
-    });
+//     for _ in 0..args.parallelism {
+//         let my_receive = receive_work.clone();
+//         let my_results_ref = &results;
+//         std::thread::Builder::new()
+//             .spawn_scoped(scope, move || {
+//                 while let Some((config, compile_result, mutex)) =
+//                     my_receive.lock().ok().and_then(|r| r.recv().ok())
+//                 {
+//                     let mut guard = mutex.try_lock().unwrap();
+//                     assert!(guard
+//                         .0
+//                         .replace(config.run_edit(compile_result).unwrap())
+//                         .is_none());
+//                 }
+//             })
+//             .unwrap();
+//     }
+// });
 
-    print_results_for_property(
-        &mut w,
-        num_versions,
-        property_versions.as_slice(),
-        &results,
-        |w, edit, mutex| {
-            use std::io::Write;
-            let result = mutex.try_lock().unwrap();
-            let run_result = result.0.unwrap();
-            let was_expected = if let Some(edit) = edit {
-                edit.severity.expected_result(&run_result)
-            } else {
-                matches!(run_result, RunResult::Success(_))
-            };
+// print_results_for_property(
+//     &mut w,
+//     num_versions,
+//     property_versions.as_slice(),
+//     &results,
+//     |w, edit, mutex| {
+//         use std::io::Write;
+//         let result = mutex.try_lock().unwrap();
+//         let run_result = result.0.unwrap();
+//         let was_expected = if let Some(edit) = edit {
+//             edit.severity.expected_result(&run_result)
+//         } else {
+//             matches!(run_result, RunResult::Success(_))
+//         };
 
-            write!(w, "| {:^body_cell_width$} ", run_result)?;
-            Ok(match run_result {
-                RunResult::CheckError(_) if !was_expected => ResultClassification::FalsePositive,
-                RunResult::Success(_) if !was_expected => ResultClassification::FalseNegative,
-                _ => ResultClassification::Uninteresting,
-            })
-        },
-    )
-    .unwrap();
-    writeln!(w, "Error message results:").unwrap();
-    std::thread::scope(|scope| {
-        let (send_work, receive_work) = channel();
+//         write!(w, "| {:^body_cell_width$} ", run_result)?;
+//         Ok(match run_result {
+//             RunResult::CheckError(_) if !was_expected => ResultClassification::FalsePositive,
+//             RunResult::Success(_) if !was_expected => ResultClassification::FalseNegative,
+//             _ => ResultClassification::Uninteresting,
+//         })
+//     },
+// )
+// .unwrap();
+// writeln!(w, "Error message results:").unwrap();
+// std::thread::scope(|scope| {
+//     let (send_work, receive_work) = channel();
 
-        for t in results.values() {
-            for e in t.values() {
-                for (config, result_mutex) in e.values() {
-                    if matches!(
-                        result_mutex.try_lock().unwrap().0.unwrap(),
-                        RunResult::CheckError(_)
-                    ) {
-                        for emv in error_message_versions.iter() {
-                            send_work.send((config, result_mutex, emv)).unwrap()
-                        }
-                    } else {
-                        progress.inc(error_message_versions.len() as u64);
-                    }
-                }
-            }
-        }
+//     for t in results.values() {
+//         for e in t.values() {
+//             for (config, compile_result, result_mutex) in e.values() {
+//                 if matches!(
+//                     result_mutex.try_lock().unwrap().0.unwrap(),
+//                     RunResult::CheckError(_)
+//                 ) {
+//                     for emv in error_message_versions.iter() {
+//                         send_work
+//                             .send((config, compile_result, result_mutex, emv))
+//                             .unwrap()
+//                     }
+//                 } else {
+//                     progress.inc(error_message_versions.len() as u64);
+//                 }
+//             }
+//         }
+//     }
 
-        let receive_work = Arc::new(Mutex::new(receive_work));
+//     let receive_work = Arc::new(Mutex::new(receive_work));
 
-        for _ in 0..args.parallelism {
-            let my_receive = receive_work.clone();
-            let my_results_ref = &results;
-            let progress_ref = &progress;
-            std::thread::Builder::new()
-                .spawn_scoped(scope, move || {
-                    while let Some((config, mutex, emv)) =
-                        my_receive.lock().ok().and_then(|r| r.recv().ok())
-                    {
-                        let emvresult = config.run_error_msg(emv).unwrap();
-                        progress_ref.inc(1);
-                        mutex.lock().unwrap().1.push((emv, emvresult));
-                    }
-                })
-                .unwrap();
-        }
-    });
+//     for _ in 0..args.parallelism {
+//         let my_receive = receive_work.clone();
+//         let my_results_ref = &results;
+//         let progress_ref = &progress;
+//         std::thread::Builder::new()
+//             .spawn_scoped(scope, move || {
+//                 while let Some((config, compile_result, mutex, emv)) =
+//                     my_receive.lock().ok().and_then(|r| r.recv().ok())
+//                 {
+//                     let emvresult = config.run_error_msg(emv).unwrap();
+//                     progress_ref.inc(1);
+//                     mutex.lock().unwrap().1.push((emv, emvresult));
+//                 }
+//             })
+//             .unwrap();
+//     }
+// });
 
-    let mut csv = std::fs::OpenOptions::new()
-        .truncate(true)
-        .create(true)
-        .write(true)
-        .open("err-msg-stats.csv")
-        .unwrap();
+// let mut csv = std::fs::OpenOptions::new()
+//     .truncate(true)
+//     .create(true)
+//     .write(true)
+//     .open("err-msg-stats.csv")
+//     .unwrap();
 
-    writeln!(csv, "Property,Version,Articulation Point,Severity,Runtime,Sucess,Repair Type,Error Size,Graph Size,Labels Size").unwrap();
+// writeln!(csv, "Property,Version,Articulation Point,Severity,Runtime,Sucess,Repair Type,Error Size,Graph Size,Labels Size").unwrap();
 
-    for type_results in results.values() {
-        for edit_results in type_results.values() {
-            for (config, result) in edit_results.values() {
-                let result = &result.try_lock().unwrap();
-                let RunConfiguration {
-                    version: (version, ..),
-                    edit,
-                    ..
-                } = config;
-                if matches!(result.0, Some(RunResult::CheckError(_))) {
-                    for (emv, result) in result.1.iter() {
-                        progress.suspend(|| {
-                            writeln!(w, "{}: {emv} {result}", config.describe()).unwrap();
-                        });
-                        let Edit {
-                            severity,
-                            articulation_point,
-                            property,
-                        } = edit.expect("Must be edit");
-                        let (success, runtime) = match result {
-                            ErrMsgResult::Timeout => ("timeout", Duration::ZERO),
-                            ErrMsgResult::Sat(t) => ("failed", *t),
-                            ErrMsgResult::Success { runtime, .. } => ("yes", *runtime),
-                        };
-                        write!(csv, "{property},{version},{articulation_point},{severity},{},{success},{emv},", humantime::format_duration(runtime)).unwrap();
-                        match result {
-                            ErrMsgResult::Success {
-                                payload: ErrMsgResultPayload::Markers(m),
-                                ..
-                            } => write!(csv, ",,{m}"),
-                            ErrMsgResult::Success {
-                                payload:
-                                    ErrMsgResultPayload::ErrGraph {
-                                        regular_edges,
-                                        error_edges,
-                                    },
-                                ..
-                            } => write!(csv, "{error_edges},{regular_edges},"),
-                            _ => write!(csv, ",,,"),
-                        }
-                        .unwrap();
-                        writeln!(csv).unwrap();
-                    }
-                }
-            }
-        }
-    }
-    progress.finish_and_clear();
-}
+// for type_results in results.values() {
+//     for edit_results in type_results.values() {
+//         for (config, compile_result, result) in edit_results.values() {
+//             let result = &result.try_lock().unwrap();
+//             let RunConfiguration {
+//                 version: (version, ..),
+//                 edit,
+//                 ..
+//             } = config;
+//             if matches!(result.0, Some(RunResult::CheckError(_))) {
+//                 for (emv, result) in result.1.iter() {
+//                     progress.suspend(|| {
+//                         writeln!(w, "{}: {emv} {result}", config.describe()).unwrap();
+//                     });
+//                     let Edit {
+//                         severity,
+//                         articulation_point,
+//                         property,
+//                     } = edit.expect("Must be edit");
+//                     let (success, runtime) = match result {
+//                         ErrMsgResult::Timeout => ("timeout", Duration::ZERO),
+//                         ErrMsgResult::Sat(t) => ("failed", *t),
+//                         ErrMsgResult::Success { runtime, .. } => ("yes", *runtime),
+//                     };
+//                     write!(csv, "{property},{version},{articulation_point},{severity},{},{success},{emv},", humantime::format_duration(runtime)).unwrap();
+//                     match result {
+//                         ErrMsgResult::Success {
+//                             payload: ErrMsgResultPayload::Markers(m),
+//                             ..
+//                         } => write!(csv, ",,{m}"),
+//                         ErrMsgResult::Success {
+//                             payload:
+//                                 ErrMsgResultPayload::ErrGraph {
+//                                     regular_edges,
+//                                     error_edges,
+//                                 },
+//                             ..
+//                         } => write!(csv, "{error_edges},{regular_edges},"),
+//                         _ => write!(csv, ",,,"),
+//                     }
+//                     .unwrap();
+//                     writeln!(csv).unwrap();
+//                 }
+//             }
+//         }
+//     }
+// }
+// progress.finish_and_clear();
+// }
