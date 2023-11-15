@@ -4,14 +4,31 @@ use std::sync::Arc;
 use anyhow::{bail, Result};
 
 use paralegal_policy::{
-    assert_error, assert_warning, paralegal_spdg::Identifier, Context, Marker, Node, NodeType,
-    PolicyContext,
+    assert_error, assert_warning, paralegal_spdg::Identifier, Context, EdgeType, Marker, Node,
+    NodeType, PolicyContext,
 };
 
 macro_rules! marker {
     ($id:ident) => {
         Marker::new_intern(stringify!($id))
     };
+}
+
+trait ContextExt {
+    fn marked_nodes<'a>(&'a self, marker: Marker) -> Box<dyn Iterator<Item = Node<'a>> + 'a>;
+}
+
+impl ContextExt for PolicyContext {
+    fn marked_nodes<'a>(&'a self, marker: Marker) -> Box<dyn Iterator<Item = Node<'a>> + 'a> {
+        Box::new(
+            self.desc()
+                .controllers
+                .keys()
+                .copied()
+                .flat_map(move |k| self.all_nodes_for_ctrl(k))
+                .filter(move |node| self.has_marker(marker, *node)),
+        )
+    }
 }
 
 /// Asserts that there exists one controller which calls a deletion
@@ -81,7 +98,36 @@ impl DeletionProp {
     }
 
     pub fn check_lib(self) -> Result<()> {
-        todo!()
+        // All nodes marked sensitive that flow into a node marked stores
+        let stored = self
+            .cx
+            .marked_nodes(marker!(sensitive))
+            .filter(|sens| {
+                self.cx
+                    .influencees(*sens, EdgeType::Data)
+                    .any(|influencee| self.cx.has_marker(marker!(stores), influencee))
+            })
+            .collect::<Vec<_>>();
+        // Max deletions across all controllers
+        let mut max_deleted = 0;
+        for c_id in self.cx.desc().controllers.keys() {
+            // All nodes marked from_storage that flow into a node marked deletes
+            let deleted = self
+                .cx
+                .all_nodes_for_ctrl(*c_id)
+                .filter(|n| {
+                    self.cx.has_marker(marker!(from_storage), *n)
+                        && self
+                            .cx
+                            .influencees(*n, EdgeType::Data)
+                            .any(|influencee| self.cx.has_marker(marker!(deletes), influencee))
+                })
+                .count();
+            max_deleted = std::cmp::max(max_deleted, deleted);
+        }
+        assert_error!(self.cx, max_deleted >= stored.len(), format!("Deleted less sensitive data than were stored in one controller. Stored {}, deleted {}", stored.len(), max_deleted));
+
+        Ok(())
     }
 
     pub fn check_strict(self) -> Result<()> {
