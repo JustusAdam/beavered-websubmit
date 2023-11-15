@@ -3,7 +3,10 @@ use std::sync::Arc;
 
 use anyhow::{bail, Result};
 
-use paralegal_policy::{assert_error, paralegal_spdg::Identifier, Context, Marker, PolicyContext};
+use paralegal_policy::{
+    assert_error, assert_warning, paralegal_spdg::Identifier, Context, Marker, Node, NodeType,
+    PolicyContext,
+};
 
 macro_rules! marker {
     ($id:ident) => {
@@ -173,7 +176,66 @@ impl ScopedStorageProp {
     }
 
     pub fn check_lib(self) -> Result<()> {
-        todo!()
+        for c_id in self.cx.desc().controllers.keys() {
+            let scopes = self
+                .cx
+                .all_nodes_for_ctrl(*c_id)
+                .filter(|node| self.cx.has_marker(marker!(scopes_store), *node))
+                .collect::<Vec<_>>();
+            let stores = self
+                .cx
+                .all_nodes_for_ctrl(*c_id)
+                .filter(|node| self.cx.has_marker(marker!(stores), *node))
+                .collect::<Vec<_>>();
+            let mut sensitives = self
+                .cx
+                .all_nodes_for_ctrl(*c_id)
+                .filter(|node| self.cx.has_marker(marker!(sensitive), *node));
+
+            let controller_valid = sensitives.all(|sens| {
+                stores.iter().all(|&store| {
+                    // sensitive flows to store implies some scope flows to store callsite
+                    !(self
+                        .cx
+                        .flows_to(sens, store, paralegal_policy::EdgeType::Data))
+                        ||
+						// The sink that scope flows to may be another CallArgument attached to the store's CallSite, it doesn't need to be store itself.
+						store.associated_call_site().is_some_and(|store_callsite| {
+                            let found_scope = scopes.iter().any(|scope| {
+                                self.cx.flows_to(
+                                    *scope,
+                                    store_callsite,
+                                    paralegal_policy::EdgeType::Data,
+                                ) &&
+								self.cx.influencers(
+									*scope,
+									paralegal_policy::EdgeType::Data
+								).any(|i| self.cx.has_marker(marker!(request_generated), i))
+                            });
+                            assert_error!(
+                                self.cx,
+                                found_scope,
+                                format!(
+                                    "Stored sensitive isn't scoped. sensitive {} stored here: {}",
+                                    self.cx.describe_node(sens),
+                                    self.cx.describe_node(store)
+                                )
+                            );
+                            found_scope
+                        })
+                })
+            });
+
+            assert_error!(
+                self.cx,
+                controller_valid,
+                format!(
+                    "Violation detected for controller: {}",
+                    self.cx.describe_def(*c_id)
+                ),
+            );
+        }
+        Ok(())
     }
 
     pub fn check_strict(self) -> Result<()> {
@@ -204,6 +266,7 @@ impl AuthDisclosureProp {
     }
 
     pub fn check(self) -> Result<()> {
+        let mut sens_to_sink = 0;
         for c_id in self.cx.desc().controllers.keys() {
             // All srcs that have no influencers
             let roots = self
@@ -245,6 +308,7 @@ impl AuthDisclosureProp {
                     {
                         continue;
                     }
+                    sens_to_sink += 1;
 
                     let Some(sink_callsite) = sink.associated_call_site() else {
                         assert_error!(
@@ -293,11 +357,125 @@ impl AuthDisclosureProp {
                 }
             }
         }
+        assert_warning!(
+            self.cx,
+            sens_to_sink != 0,
+            "No sensitives flowed to any sinks across all controllers. Property is vacuous."
+        );
         Ok(())
     }
 
     pub fn check_lib(self) -> Result<()> {
-        todo!()
+        let mut sens_to_sink = 0;
+        for c_id in self.cx.desc().controllers.keys() {
+            // All srcs that have no influencers
+            let roots = self
+                .cx
+                .roots(*c_id, paralegal_policy::EdgeType::Data)
+                .collect::<Vec<_>>();
+
+            let safe_scopes = self
+                .cx
+                // All nodes marked "safe", "request_generated", "server_state", "from_storage"
+                .all_nodes_for_ctrl(*c_id)
+                .filter(|n| {
+                    self.cx.has_marker(marker!(safe_source), *n)
+                        || self.cx.has_marker(marker!(request_generated), *n)
+                        || self.cx.has_marker(marker!(server_state), *n)
+                        || self.cx.has_marker(marker!(from_storage), *n)
+                })
+                .collect::<Vec<_>>();
+            let sinks = self
+                .cx
+                .all_nodes_for_ctrl(*c_id)
+                .filter(|n| self.cx.has_marker(marker!(sink), *n))
+                .collect::<Vec<_>>();
+
+            let sensitives_and_from_storage = self
+                .cx
+                .all_nodes_for_ctrl(*c_id)
+                .filter(|node| self.cx.has_marker(marker!(sensitive), *node))
+                .chain(
+                    self.cx
+                        .all_nodes_for_ctrl(*c_id)
+                        .filter(|node| self.cx.has_marker(marker!(from_storage), *node)),
+                );
+
+            for sens in sensitives_and_from_storage {
+                for sink in sinks.iter() {
+                    // sensitive flows to store implies
+                    if !self
+                        .cx
+                        .flows_to(sens, *sink, paralegal_policy::EdgeType::Data)
+                    {
+                        continue;
+                    }
+                    sens_to_sink += 1;
+
+                    // scopes for the store
+                    let store_scopes = if let Some(sink_callsite) = sink.associated_call_site() {
+                        // If the store is a callsite, it is any `scopes` that flows into it.
+                        self.cx
+                            .influencers(sink_callsite, paralegal_policy::EdgeType::Data)
+                            .filter(|n| self.cx.has_marker(marker!(scopes), *n))
+                            .collect::<Vec<_>>()
+                    } else if let Node {
+                        ctrl_id,
+                        typ: NodeType::Return(_),
+                    } = sink
+                    {
+                        // If the store is the Controller Return, it is anything marked `request_generated`.
+                        self.cx
+                            .all_nodes_for_ctrl(*ctrl_id)
+                            .filter(|n| self.cx.has_marker(marker!(request_generated), *n))
+                            .collect::<Vec<_>>()
+                    } else {
+                        assert_error!(
+                            self.cx,
+                            false,
+                            format!(
+                                "sink {} does not have associated callsite",
+                                self.cx.describe_node(*sink)
+                            )
+                        );
+                        continue;
+                    };
+
+                    assert_error!(
+                        self.cx,
+                        !store_scopes.is_empty(),
+                        format!(
+                            "Did not find any scopes for sink {}",
+                            self.cx.describe_node(*sink)
+                        )
+                    );
+
+                    // all flows are safe before scope
+                    let safe_before_scope = self.cx.always_happens_before(
+                        roots.iter().cloned(),
+                        |n| safe_scopes.contains(&n),
+                        |n| store_scopes.contains(&n),
+                    )?;
+
+                    assert_error!(
+                        self.cx,
+                        safe_before_scope.holds(),
+                        format!(
+                            "Sensitive {} flowed to sink {} which did not have safe scopes",
+                            self.cx.describe_node(sens),
+                            self.cx.describe_node(*sink),
+                        )
+                    );
+                    safe_before_scope.report(self.cx.clone());
+                }
+            }
+        }
+        assert_warning!(
+            self.cx,
+            sens_to_sink != 0,
+            "No sensitives flowed to any sinks across all controllers. Property is vacuous."
+        );
+        Ok(())
     }
 
     pub fn check_strict(self) -> Result<()> {

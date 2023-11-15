@@ -533,7 +533,6 @@ struct RunConfiguration {
 
 impl RunConfiguration {
     fn describe(&self) -> String {
-        use std::fmt::Write;
         let mut s = String::new();
         write!(s, "{}-{}-", self.typ, self.version.0).unwrap();
         if let Some(edit) = self.edit {
@@ -607,15 +606,15 @@ impl RunConfiguration {
         if std::path::Path::new(&external_ann_file_name).exists() {
             command
                 .get_command()
-                .args(&["--external-annotations", external_ann_file_name.as_str()]);
+                .args(["--external-annotations", external_ann_file_name.as_str()]);
         }
         command
             .get_command()
-            .args(&["--", "--features", &format!("v-ann-{version}")]);
+            .args(["--", "--features", &format!("v-ann-{version}")]);
         if let Some(edit) = self.edit {
             command
                 .get_command()
-                .args(&["--features", &edit.to_string()]);
+                .args(["--features", &edit.to_string()]);
         }
         if !self.verbose() {
             command
@@ -633,7 +632,7 @@ impl RunConfiguration {
     }
 
     fn run_edit(&self, compile_result: &Result<(), anyhow::Error>) -> anyhow::Result<RunResult> {
-        if let Err(_) = compile_result {
+        if compile_result.is_err() {
             return Ok(RunResult::CompilationError);
         };
 
@@ -657,14 +656,11 @@ impl RunConfiguration {
         let ctx = Arc::new(gl.build_context()?);
         if self.verbose_commands() {
             self.progress
-                .suspend(|| println!("Executing check for forge property"));
+                .suspend(|| println!("Executing check for rust property"));
         }
-        if self.verbose() {
-            if ctx.desc().controllers.is_empty() {
-                self.progress.suspend(|| {
-                    println!("No controllers found. Your policy is likely to be vacuous.")
-                });
-            }
+        if self.verbose() && ctx.desc().controllers.is_empty() {
+            self.progress
+                .suspend(|| println!("No controllers found. Your policy is likely to be vacuous."));
         }
         let prop = match self.typ {
             Property::Deletion => run_del_policy,
@@ -747,7 +743,7 @@ impl RunConfiguration {
             self.write_headers_and_prop(&mut w, sig_file)?;
             let template_file = self
                 .forge_source_dir()
-                .join(&format!("dfpp-props/err_msg_template_{template}.frg"));
+                .join(format!("dfpp-props/err_msg_template_{template}.frg"));
             copy(&mut std::fs::File::open(template_file)?, &mut w)?;
         }
         let forge_output_path = self.outpath().join(format!(
@@ -860,10 +856,8 @@ fn print_results_for_property<
     mut f: F,
 ) -> std::io::Result<()> {
     for (typ, results) in results.iter() {
-        let mut false_negatives = Vec::with_capacity(num_versions);
-        false_negatives.resize(num_versions, 0);
-        let mut false_positives = Vec::with_capacity(num_versions);
-        false_positives.resize(num_versions, 0);
+        let mut false_negatives = vec![0; num_versions];
+        let mut false_positives = vec![0; num_versions];
 
         write!(w, " {:HEAD_CELL_WIDTH$} ", typ.to_string(),)?;
         write!(w, "| {:HEAD_CELL_WIDTH$} ", "expected")?;
@@ -965,7 +959,7 @@ fn main_seq(args: &'static Args) {
         ERR_MSG_VERSIONS.to_vec()
     };
 
-    let ref is_selected = {
+    let is_selected = &{
         let as_ref_v = args
             .only
             .as_ref()
@@ -1088,7 +1082,7 @@ fn main_seq(args: &'static Args) {
                     .iter()
                     .map(|(_, check_result)| {
                         let was_expected = if let Some(edit) = edit {
-                            edit.severity.expected_result(&check_result)
+                            edit.severity.expected_result(check_result)
                         } else {
                             matches!(check_result, CheckResult::Success(_))
                         };
