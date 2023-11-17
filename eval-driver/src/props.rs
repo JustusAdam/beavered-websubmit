@@ -200,16 +200,14 @@ impl DeletionProp {
                             typ: callsite.into(),
                         };
 
-                        if is_safe_noskip(cx.clone(), callsite_node) {
-                            if seen.insert(callsite) {
-                                queue.push(DataSource::FunctionCall(callsite.clone()))
-                            }
+                        if is_safe_noskip(cx.clone(), callsite_node) && seen.insert(callsite) {
+                            queue.push(DataSource::FunctionCall(callsite.clone()))
                         }
                     }
                 }
             }
 
-            return false;
+            false
         };
 
         let found_deleter = self.cx.desc().controllers.keys().any(|ctrl_id| {
