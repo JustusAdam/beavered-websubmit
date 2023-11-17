@@ -1,5 +1,5 @@
-use lettre::sendmail::SendmailTransport;
-use lettre::Transport;
+use lettre::sendmail::{self, SendmailTransport};
+use lettre::{SendableEmail, Transport};
 use lettre_email::Email;
 
 #[cfg_attr(not(feature = "v-ann-lib"), paralegal::marker{ sink, arguments = [3, 4] })]
@@ -25,11 +25,19 @@ pub(crate) fn my_send(
 
     let email = builder.build();
     match email {
-        Ok(result) => mailer.send(result.into())?,
-        Err(e) => {
-            println!("couldn't construct email: {}", e);
+        Ok(result) => mailer_send(&mut mailer, result.into())?,
+        // Cannot print the error here, since it may leak information
+        Err(_) => {
+            println!("couldn't construct email");
         }
     }
 
     Ok(())
+}
+
+pub fn mailer_send(
+    mailer: &mut sendmail::SendmailTransport,
+    email: SendableEmail,
+) -> Result<(), sendmail::error::Error> {
+    mailer.send(email)
 }

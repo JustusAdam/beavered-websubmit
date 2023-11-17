@@ -310,6 +310,8 @@ fn delete_my_answers_controller(
 
 #[paralegal::analyze]
 #[post("/forget")]
+#[cfg_attr(not(feature = "v-ann-lib"), paralegal::marker(auth_witness, arguments = [0]))]
+#[cfg_attr(not(feature = "v-ann-lib"), paralegal::marker(safe_source, arguments = [0]))]
 pub(crate) fn forget_user(apikey: ApiKey, backend: &State<Arc<Mutex<MySqlBackend>>>) -> Redirect {
     let mut bg = backend.lock().unwrap();
     let key = apikey.user.as_str();
