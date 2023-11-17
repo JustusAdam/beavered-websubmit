@@ -1,6 +1,4 @@
-
-// I'm using an explicit `next and `into_iter here, but this could be done via
-// labels as well to make it cleaner.
+// The below fn does not work because of https://github.com/brownsys/paralegal/issues/114.
 pred flows_to_noskip[src: one Src, f : Sink, flow: set Src->Sink, labels: set Object->Label] {
     let safe_functions = labeled_objects[Function, into_iter, labels] |
 	let next_functions = labeled_objects[Function, next, labels] |

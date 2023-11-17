@@ -1,11 +1,12 @@
 extern crate anyhow;
-use std::sync::Arc;
+use std::{collections::HashSet, sync::Arc};
 
 use anyhow::{bail, Result};
 
 use paralegal_policy::{
-    assert_error, assert_warning, paralegal_spdg::Identifier, Context, EdgeType, Marker, Node,
-    NodeType, PolicyContext,
+    assert_error, assert_warning,
+    paralegal_spdg::{CallSite, DataSource, Identifier},
+    Context, EdgeType, Marker, Node, NodeType, PolicyContext,
 };
 
 macro_rules! marker {
@@ -131,7 +132,138 @@ impl DeletionProp {
     }
 
     pub fn check_strict(self) -> Result<()> {
-        todo!()
+        // All types marked "sensitive"
+        let types_to_check = self
+            .cx
+            .marked_type(marker!(sensitive))
+            .filter(|t| {
+                {
+                    // If there is any controller
+                    self.cx.desc().controllers.keys().any(|ctrl_id| {
+                        // Where a source of that type
+                        self.cx.srcs_with_type(*ctrl_id, *t).any(|sens_src| {
+                            // Has data influence on
+                            self.cx
+                                .influencees(sens_src, paralegal_policy::EdgeType::Data)
+                                .any(|influencee| {
+                                    // A node with marker "influences"
+                                    self.cx.has_marker(marker!(stores), influencee)
+                                })
+                        })
+                    })
+                }
+            })
+            // Mapped to their otype
+            .flat_map(|t| self.cx.otypes(t))
+            .collect::<Vec<_>>();
+
+        let is_safe_noskip = |ctx: Arc<PolicyContext>, node: Node| -> bool {
+            let safe_names = ["next", "into_iter", "deref_mut"];
+            match node.typ.as_call_site() {
+                Some(function) => safe_names
+                    .into_iter()
+                    .any(|name| ctx.desc().def_info[&function.function].name.as_str() == name),
+                None => true,
+            }
+        };
+
+        let flows_to_no_skip = |cx: Arc<PolicyContext>, src: Node, sink: Node| -> bool {
+            if src == sink {
+                return true;
+            }
+
+            let flow = &cx.desc().controllers.get(&src.ctrl_id).unwrap().data_flow.0;
+            let mut queue = if let Some(source) = src.typ.as_data_source() {
+                vec![source]
+            } else {
+                return false;
+            };
+            let mut seen = HashSet::<&CallSite>::new();
+
+            while let Some(current) = queue.pop() {
+                if let Some(source) = sink.typ.as_data_source() {
+                    if source == current {
+                        return true;
+                    }
+                }
+
+                for next in flow.get(&current).into_iter().flatten() {
+                    if let Some(sink) = sink.typ.as_data_sink() {
+                        if next == sink {
+                            return true;
+                        }
+                    }
+
+                    if let Some((callsite, _)) = next.as_argument() {
+                        let callsite_node = Node {
+                            ctrl_id: src.ctrl_id,
+                            typ: callsite.into(),
+                        };
+
+                        if is_safe_noskip(cx.clone(), callsite_node) {
+                            if seen.insert(callsite) {
+                                queue.push(DataSource::FunctionCall(callsite.clone()))
+                            }
+                        }
+                    }
+                }
+            }
+
+            return false;
+        };
+
+        let found_deleter = self.cx.desc().controllers.keys().any(|ctrl_id| {
+            let auth_witnesses = self
+                .cx
+                .all_nodes_for_ctrl(*ctrl_id)
+                .filter(|n| self.cx.has_marker(marker!(auth_witness), *n))
+                .collect::<Vec<_>>();
+            // Retrievers must be unconditional and have dataflow influence from an auth_witness
+            let possible_retrievers = auth_witnesses
+                .iter()
+                .flat_map(|auth_witness| {
+                    let cx_clone = self.cx.clone();
+                    self.cx
+                        .roots(*ctrl_id, EdgeType::Control)
+                        .filter(move |r| cx_clone.flows_to(*auth_witness, *r, EdgeType::Data))
+                })
+                .collect::<Vec<_>>();
+
+            // For all types to check
+            types_to_check.iter().all(|ty| {
+                let retrievers_for_type = possible_retrievers
+                    .iter()
+                    .filter(|retrieve| {
+                        self.cx
+                            .get_node_types(retrieve)
+                            .is_some_and(|types| types.contains(ty))
+                    })
+                    .collect::<Vec<_>>();
+
+                // A retriever of that type flows to delete without skipping
+                retrievers_for_type.iter().any(|retriever| {
+                    self.cx
+                        .all_nodes_for_ctrl(*ctrl_id)
+                        .filter(|node| self.cx.has_marker(marker!(deletes), *node))
+                        .any(|delete| flows_to_no_skip(self.cx.clone(), **retriever, delete))
+                })
+            })
+        });
+
+        assert_error!(
+            self.cx,
+            found_deleter,
+            "Did not find valid deleter for all types."
+        );
+        for ty in types_to_check {
+            assert_error!(
+                self.cx,
+                found_deleter,
+                format!("Type: {}", self.cx.describe_def(ty))
+            )
+        }
+
+        Ok(())
     }
 }
 
@@ -311,6 +443,7 @@ impl AuthDisclosureProp {
         AuthDisclosureProp { cx }
     }
 
+    // TODO: differentiate between different kinds of sinks - email sinks vs print sinks for all annotation levels
     pub fn check(self) -> Result<()> {
         let mut sens_to_sink = 0;
         for c_id in self.cx.desc().controllers.keys() {

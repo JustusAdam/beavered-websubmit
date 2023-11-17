@@ -655,8 +655,12 @@ impl RunConfiguration {
         let gl = GraphLocation::custom(self.graph_loc_out_file());
         let ctx = Arc::new(gl.build_context()?);
         if self.verbose_commands() {
-            self.progress
-                .suspend(|| println!("Executing check for rust property"));
+            self.progress.suspend(|| {
+                println!(
+                    "Executing check for rust property for edit {}",
+                    self.describe()
+                )
+            });
         }
         if self.verbose() && ctx.desc().controllers.is_empty() {
             self.progress

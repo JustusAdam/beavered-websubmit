@@ -2,6 +2,8 @@
 marker = "safe_source"
 on_return = true
 
+# TODO: These annotations do not work due (for the Forge proeprty) to https://github.com/brownsys/paralegal/issues/114.
+# [["lettre::Transport::send"]]
 [["core::iter::traits::collect::IntoIterator::into_iter"]]
 marker = "into_iter"
 on_return = true
@@ -9,6 +11,11 @@ on_return = true
 [["core::iter::traits::iterator::Iterator::next"]]
 marker = "next"
 on_return = true
+
+# TODO: These annotations do not work due (for the Forge proeprty) to https://github.com/brownsys/paralegal/issues/114.
+# [["std::sync::mutex::deref_mut::deref_mut"]]
+# marker = "next"
+# on_return = true
 
 [["std::io::_print"]]
 marker = "sink"
