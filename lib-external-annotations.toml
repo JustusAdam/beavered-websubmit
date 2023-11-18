@@ -6,9 +6,7 @@ on_return = true
 marker = "sink"
 on_argument = [0]
 
-# TODO: This wrapper annotation is needed due to https://github.com/brownsys/paralegal/issues/114, restore once fixed.
-# [["lettre::Transport::send"]]
-[["websubmit::email::mailer_send"]]
+[["lettre::Transport::send"]]
 marker = "sink"
 on_argument = [1]
 

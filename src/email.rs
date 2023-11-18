@@ -25,7 +25,7 @@ pub(crate) fn my_send(
 
     let email = builder.build();
     match email {
-        Ok(result) => mailer_send(&mut mailer, result.into())?,
+        Ok(result) => mailer.send(result.into())?,
         // Cannot print the error here, since it may leak information
         Err(_) => {
             println!("couldn't construct email");
@@ -33,11 +33,4 @@ pub(crate) fn my_send(
     }
 
     Ok(())
-}
-
-pub fn mailer_send(
-    mailer: &mut sendmail::SendmailTransport,
-    email: SendableEmail,
-) -> Result<(), sendmail::error::Error> {
-    mailer.send(email)
 }
