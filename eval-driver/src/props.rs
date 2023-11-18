@@ -157,16 +157,6 @@ impl DeletionProp {
             .flat_map(|t| self.cx.otypes(t))
             .collect::<Vec<_>>();
 
-        let is_safe_noskip = |ctx: Arc<PolicyContext>, node: Node| -> bool {
-            let safe_names = ["next", "into_iter", "deref_mut"];
-            match node.typ.as_call_site() {
-                Some(function) => safe_names
-                    .into_iter()
-                    .any(|name| ctx.desc().def_info[&function.function].name.as_str() == name),
-                None => true,
-            }
-        };
-
         let flows_to_no_skip = |cx: Arc<PolicyContext>, src: Node, sink: Node| -> bool {
             if src == sink {
                 return true;
@@ -200,7 +190,10 @@ impl DeletionProp {
                             typ: callsite.into(),
                         };
 
-                        if is_safe_noskip(cx.clone(), callsite_node) && seen.insert(callsite) {
+                        if (cx.has_marker(marker!(into_iter), callsite_node)
+                            || cx.has_marker(marker!(next), callsite_node))
+                            && seen.insert(callsite)
+                        {
                             queue.push(DataSource::FunctionCall(callsite.clone()))
                         }
                     }
