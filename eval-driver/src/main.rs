@@ -11,6 +11,7 @@ use clap::Parser;
 use either::Either;
 
 use indicatif::ProgressBar;
+use paralegal_policy::Context;
 use props::run_del_policy;
 use props::run_dis_policy;
 use props::run_sc_policy;
@@ -650,10 +651,11 @@ impl RunConfiguration {
     }
 
     fn run_rust_prop(&self) -> anyhow::Result<CheckResult> {
-        let now = std::time::Instant::now();
-
         let gl = GraphLocation::custom(self.graph_loc_out_file());
-        let ctx = Arc::new(gl.build_context()?);
+        let pd = gl.build_desc()?;
+
+        let now = std::time::Instant::now();
+        let ctx = Arc::new(Context::new(pd));
         if self.verbose_commands() {
             self.progress.suspend(|| {
                 println!(
@@ -687,8 +689,6 @@ impl RunConfiguration {
     }
 
     fn run_forge_prop(&self) -> anyhow::Result<CheckResult> {
-        let now = std::time::Instant::now();
-
         use std::process::*;
         let check_file_path = self.forge_out_file("check");
         {
@@ -717,6 +717,7 @@ impl RunConfiguration {
             self.progress
                 .suspend(|| println!("Executing check command: {:?}", racket_cmd));
         }
+        let now = std::time::Instant::now();
         let status = wait_with_timeout(self.check_timeout(), &mut racket_cmd.spawn()?)?;
         self.progress.inc(1);
         status.map_or(Ok(CheckResult::Timeout), |status| {

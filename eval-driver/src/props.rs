@@ -16,19 +16,18 @@ macro_rules! marker {
 }
 
 trait ContextExt {
-    fn marked_nodes<'a>(&'a self, marker: Marker) -> Box<dyn Iterator<Item = Node<'a>> + 'a>;
+    fn marked_nodes<'a>(&'a self, marker: Marker) -> Vec<Node<'a>>;
 }
 
 impl ContextExt for PolicyContext {
-    fn marked_nodes<'a>(&'a self, marker: Marker) -> Box<dyn Iterator<Item = Node<'a>> + 'a> {
-        Box::new(
-            self.desc()
-                .controllers
-                .keys()
-                .copied()
-                .flat_map(move |k| self.all_nodes_for_ctrl(k))
-                .filter(move |node| self.has_marker(marker, *node)),
-        )
+    fn marked_nodes<'a>(&'a self, marker: Marker) -> Vec<Node<'a>> {
+        self.desc()
+            .controllers
+            .keys()
+            .copied()
+            .flat_map(move |k| self.all_nodes_for_ctrl(k))
+            .filter(move |node| self.has_marker(marker, *node))
+            .collect::<Vec<_>>()
     }
 }
 
@@ -57,9 +56,11 @@ impl DeletionProp {
                             // Has data influence on
                             self.cx
                                 .influencees(sens_src, paralegal_policy::EdgeType::Data)
+                                .collect::<Vec<_>>()
+                                .iter()
                                 .any(|influencee| {
                                     // A node with marker "influences"
-                                    self.cx.has_marker(marker!(stores), influencee)
+                                    self.cx.has_marker(marker!(stores), *influencee)
                                 })
                         })
                     })
@@ -76,8 +77,10 @@ impl DeletionProp {
                     // That has data flow influence on
                     self.cx
                         .influencees(node, paralegal_policy::EdgeType::Data)
+                        .collect::<Vec<_>>()
+                        .iter()
                         // A node with marker "deletes"
-                        .any(|influencee| self.cx.has_marker(marker!(deletes), influencee))
+                        .any(|influencee| self.cx.has_marker(marker!(deletes), *influencee))
                 })
             })
         });
@@ -100,13 +103,15 @@ impl DeletionProp {
 
     pub fn check_lib(self) -> Result<()> {
         // All nodes marked sensitive that flow into a node marked stores
-        let stored = self
-            .cx
-            .marked_nodes(marker!(sensitive))
+        let binding = self.cx.marked_nodes(marker!(sensitive));
+        let stored = binding
+            .iter()
             .filter(|sens| {
                 self.cx
-                    .influencees(*sens, EdgeType::Data)
-                    .any(|influencee| self.cx.has_marker(marker!(stores), influencee))
+                    .influencees(**sens, EdgeType::Data)
+                    .collect::<Vec<_>>()
+                    .iter()
+                    .any(|influencee| self.cx.has_marker(marker!(stores), *influencee))
             })
             .collect::<Vec<_>>();
         // Max deletions across all controllers
@@ -121,7 +126,9 @@ impl DeletionProp {
                         && self
                             .cx
                             .influencees(*n, EdgeType::Data)
-                            .any(|influencee| self.cx.has_marker(marker!(deletes), influencee))
+                            .collect::<Vec<_>>()
+                            .iter()
+                            .any(|influencee| self.cx.has_marker(marker!(deletes), *influencee))
                 })
                 .count();
             max_deleted = std::cmp::max(max_deleted, deleted);
@@ -145,9 +152,11 @@ impl DeletionProp {
                             // Has data influence on
                             self.cx
                                 .influencees(sens_src, paralegal_policy::EdgeType::Data)
+                                .collect::<Vec<_>>()
+                                .iter()
                                 .any(|influencee| {
                                     // A node with marker "influences"
-                                    self.cx.has_marker(marker!(stores), influencee)
+                                    self.cx.has_marker(marker!(stores), *influencee)
                                 })
                         })
                     })
@@ -316,7 +325,8 @@ impl ScopedStorageProp {
 								self.cx.influencers(
 									*scope,
 									paralegal_policy::EdgeType::Data
-								).any(|i| self.cx.has_marker(marker!(auth_witness), i))
+								).collect::<Vec<_>>()
+								.iter().any(|i| self.cx.has_marker(marker!(auth_witness), *i))
                             });
                             assert_error!(
                                 self.cx,
@@ -379,7 +389,8 @@ impl ScopedStorageProp {
 								self.cx.influencers(
 									*scope,
 									paralegal_policy::EdgeType::Data
-								).any(|i| self.cx.has_marker(marker!(request_generated), i))
+								).collect::<Vec<_>>()
+								.iter().any(|i| self.cx.has_marker(marker!(request_generated), *i))
                             });
                             assert_error!(
                                 self.cx,
@@ -444,33 +455,38 @@ impl AuthDisclosureProp {
                 .roots(*c_id, paralegal_policy::EdgeType::Data)
                 .collect::<Vec<_>>();
 
-            let safe_scopes = self
+            let h = self
                 .cx
                 // All nodes marked "safe"
                 .all_nodes_for_ctrl(*c_id)
-                .filter(|n| self.cx.has_marker(marker!(safe_source), *n))
+                .collect::<Vec<_>>();
+            let safe_scopes = h
+                .iter()
+                .filter(|n| self.cx.has_marker(marker!(safe_source), **n))
                 // And all nodes marked "safe_with_bless"
-                .chain(self.cx.all_nodes_for_ctrl(*c_id).filter(|node| {
-                    self.cx.has_marker(marker!(safe_source_with_bless), *node)
+                .chain(h.iter().filter(|node| {
+                    self.cx.has_marker(marker!(safe_source_with_bless), **node)
                         && self
                             .cx
                             // That are influenced by a node marked "bless"
-                            .influencers(*node, paralegal_policy::EdgeType::DataAndControl)
-                            .any(|b| self.cx.has_marker(marker!(bless_safe_source), b))
+                            .influencers(**node, paralegal_policy::EdgeType::DataAndControl)
+                            .collect::<Vec<_>>()
+                            .iter()
+                            .any(|b| self.cx.has_marker(marker!(bless_safe_source), *b))
                 }))
                 .collect::<Vec<_>>();
-            let sinks = self
-                .cx
-                .all_nodes_for_ctrl(*c_id)
-                .filter(|n| self.cx.has_marker(marker!(sink), *n))
+            let f = self.cx.all_nodes_for_ctrl(*c_id).collect::<Vec<_>>();
+            let sinks = f
+                .iter()
+                .filter(|n| self.cx.has_marker(marker!(sink), **n))
                 .collect::<Vec<_>>();
-            let sensitives = self
-                .cx
-                .all_nodes_for_ctrl(*c_id)
-                .filter(|node| self.cx.has_marker(marker!(sensitive), *node));
+            let g = self.cx.all_nodes_for_ctrl(*c_id).collect::<Vec<_>>();
+            let sensitives = g
+                .iter()
+                .filter(|node| self.cx.has_marker(marker!(sensitive), **node));
 
-            for sens in sensitives {
-                for sink in sinks.iter() {
+            for &sens in sensitives {
+                for &sink in sinks.iter() {
                     // sensitive flows to store implies
                     if !self
                         .cx
@@ -492,11 +508,14 @@ impl AuthDisclosureProp {
                         continue;
                     };
 
-                    // scopes for the store
-                    let store_scopes = self
+                    let e = self
                         .cx
                         .influencers(sink_callsite, paralegal_policy::EdgeType::Data)
-                        .filter(|n| self.cx.has_marker(marker!(scopes), *n))
+                        .collect::<Vec<_>>();
+                    // scopes for the store
+                    let store_scopes = e
+                        .iter()
+                        .filter(|n| self.cx.has_marker(marker!(scopes), **n))
                         .collect::<Vec<_>>();
                     assert_error!(
                         self.cx,
@@ -510,8 +529,8 @@ impl AuthDisclosureProp {
                     // all flows are safe before scope
                     let safe_before_scope = self.cx.always_happens_before(
                         roots.iter().cloned(),
-                        |n| safe_scopes.contains(&n),
-                        |n| store_scopes.contains(&n),
+                        |n| safe_scopes.contains(&&n),
+                        |n| store_scopes.contains(&&n),
                     )?;
 
                     assert_error!(
@@ -543,36 +562,39 @@ impl AuthDisclosureProp {
                 .cx
                 .roots(*c_id, paralegal_policy::EdgeType::Data)
                 .collect::<Vec<_>>();
-
-            let safe_scopes = self
+            let c = self
                 .cx
                 // All nodes marked "safe", "request_generated", "server_state", "from_storage"
                 .all_nodes_for_ctrl(*c_id)
-                .filter(|n| {
+                .collect::<Vec<_>>();
+            let safe_scopes = c
+                .iter()
+                .filter(|&n| {
                     self.cx.has_marker(marker!(safe_source), *n)
                         || self.cx.has_marker(marker!(request_generated), *n)
                         || self.cx.has_marker(marker!(server_state), *n)
                         || self.cx.has_marker(marker!(from_storage), *n)
                 })
                 .collect::<Vec<_>>();
-            let sinks = self
-                .cx
-                .all_nodes_for_ctrl(*c_id)
-                .filter(|n| self.cx.has_marker(marker!(sink), *n))
+            let d = self.cx.all_nodes_for_ctrl(*c_id).collect::<Vec<_>>();
+            let sinks = d
+                .iter()
+                .filter(|&n| self.cx.has_marker(marker!(sink), *n))
                 .collect::<Vec<_>>();
 
-            let sensitives_and_from_storage = self
-                .cx
-                .all_nodes_for_ctrl(*c_id)
-                .filter(|node| self.cx.has_marker(marker!(sensitive), *node))
+            let a = self.cx.all_nodes_for_ctrl(*c_id).collect::<Vec<_>>();
+            let b = self.cx.all_nodes_for_ctrl(*c_id).collect::<Vec<_>>();
+
+            let sensitives_and_from_storage = a
+                .iter()
+                .filter(|&node| self.cx.has_marker(marker!(sensitive), *node))
                 .chain(
-                    self.cx
-                        .all_nodes_for_ctrl(*c_id)
-                        .filter(|node| self.cx.has_marker(marker!(from_storage), *node)),
+                    b.iter()
+                        .filter(|&node| self.cx.has_marker(marker!(from_storage), *node)),
                 );
 
-            for sens in sensitives_and_from_storage {
-                for sink in sinks.iter() {
+            for &sens in sensitives_and_from_storage {
+                for &sink in sinks.iter() {
                     // sensitive flows to store implies
                     if !self
                         .cx
@@ -597,7 +619,7 @@ impl AuthDisclosureProp {
                         // If the store is the Controller Return, it is anything marked `request_generated`.
                         self.cx
                             .all_nodes_for_ctrl(*ctrl_id)
-                            .filter(|n| self.cx.has_marker(marker!(request_generated), *n))
+                            .filter(|&n| self.cx.has_marker(marker!(request_generated), n))
                             .collect::<Vec<_>>()
                     } else {
                         assert_error!(
@@ -623,7 +645,7 @@ impl AuthDisclosureProp {
                     // all flows are safe before scope
                     let safe_before_scope = self.cx.always_happens_before(
                         roots.iter().cloned(),
-                        |n| safe_scopes.contains(&n),
+                        |n| safe_scopes.contains(&&n),
                         |n| store_scopes.contains(&n),
                     )?;
 
