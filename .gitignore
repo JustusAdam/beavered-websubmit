@@ -10,3 +10,4 @@ analysis_result.frg
 *.df
 .vscode/settings.json
 /verification/
+flow-graph.json
