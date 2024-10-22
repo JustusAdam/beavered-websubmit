@@ -1,7 +1,7 @@
 #include "config.hpp"
 #include <fstream>
 #include <stdexcept>
-#include "toml.hpp"
+#include "toml/toml.hpp"
 
 namespace config {
 

@@ -3,10 +3,7 @@
 
 namespace mysql {
 
-Pool* Pool::new(const std::string& connection_string) {
-    // Dummy implementation
-    return new Pool();
-}
+Pool::Pool(const std::string& connection_string) {}
 
 Connection* Pool::get_conn() {
     // Dummy implementation

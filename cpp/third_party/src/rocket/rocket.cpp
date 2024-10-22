@@ -1,11 +1,11 @@
+#include <unordered_map>
+#include <string>
+
 #include "rocket.hpp"
 
 namespace rocket {
 
-ignite& ignite::launch() {
-    // Dummy implementation
-    return *this;
-}
+void ignite::launch() {}
 
 namespace response {
 Redirect Redirect::to(const std::string& uri) {
@@ -21,11 +21,14 @@ FileServer FileServer::from(const char* path) {
 }
 }
 
-} // namespace rocket
-
-namespace rocket_dyn_templates {
-rocket::Fairing Template::fairing() {
+Fairing Template::fairing() {
     // Dummy implementation
     return rocket::Fairing();
 }
+
+Template Template::render(const std::string& name, const std::unordered_map<std::string, std::string> context) {
+    // Dummy implementation
+    return Template(name, context);
+}
+
 }

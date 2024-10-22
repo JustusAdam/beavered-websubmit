@@ -1,19 +1,21 @@
 #include "questions.hpp"
 #include <stdexcept>
 
+using Value = mysql::Value;
+
 namespace questions {
 
 rocket::response::Template leclist(
     const apikey::ApiKey& apikey,
-    const rocket::State<std::shared_ptr<std::mutex<backend::MySqlBackend>>>& backend,
+    const rocket::State<std::shared_ptr<mutex<backend::MySqlBackend>>>& backend,
     const rocket::State<std::shared_ptr<config::Config>>& config
 ) {
-    auto bg = backend->lock();
+    auto bg = (*backend)->lock();
     auto res = bg->prep_exec(
         "SELECT lectures.id, lectures.label, lec_qcount.qcount \
          FROM lectures \
          LEFT JOIN lec_qcount ON (lectures.id = lec_qcount.lec)",
-        std::vector<Value>()
+        std::vector<mysql::Value>()
     );
     bg.unlock();
 
@@ -41,9 +43,9 @@ rocket::response::Template leclist(
 rocket::response::Template answers(
     const admin::Admin& admin,
     int num,
-    const rocket::State<std::shared_ptr<std::mutex<backend::MySqlBackend>>>& backend
+    const rocket::State<std::shared_ptr<mutex<backend::MySqlBackend>>>& backend
 ) {
-    auto bg = backend->lock();
+    auto bg = (*backend)->lock();
     auto res = bg->prep_exec(
         "SELECT * FROM answers WHERE lec = ?",
         std::vector<Value>{Value((uint64_t)num)}
@@ -73,7 +75,7 @@ rocket::response::Template answers(
 rocket::response::Template questions(
     const apikey::ApiKey& apikey,
     int num,
-    const rocket::State<std::shared_ptr<std::mutex<backend::MySqlBackend>>>& backend
+    const rocket::State<std::shared_ptr<mutex<backend::MySqlBackend>>>& backend
 ) {
     std::unordered_map<uint64_t, std::string> answers;
     auto bg = backend->lock();
@@ -124,7 +126,7 @@ rocket::response::Redirect questions_submit(
     const apikey::ApiKey& apikey,
     int num,
     const rocket::request::Form<LectureQuestionSubmission>& data,
-    const rocket::State<std::shared_ptr<std::mutex<backend::MySqlBackend>>>& backend,
+    const rocket::State<std::shared_ptr<mutex<backend::MySqlBackend>>>& backend,
     const rocket::State<std::shared_ptr<config::Config>>& config
 ) {
     auto bg = backend->lock();

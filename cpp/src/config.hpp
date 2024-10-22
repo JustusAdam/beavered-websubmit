@@ -17,8 +17,9 @@ public:
     const std::string& smtp_pass() const;
     const std::string& smtp_from() const;
 
-private:
     Config() = default;
+    std::string class_;
+private:
 
     std::string db_name_;
     std::string smtp_server_;

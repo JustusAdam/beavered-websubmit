@@ -9,6 +9,36 @@
 #include "apikey.hpp"
 #include "admin.hpp"
 
+namespace mt {
+
+template<typename T>
+struct lock_guard {
+    std::mutex& m;
+    T& t;
+    lock_guard(std::mutex& m, T& t) : m(m), t(t) {
+        m.lock();
+    }
+    ~lock_guard() { m.unlock(); }
+
+    T& operator*() { return t; }
+    T* operator->() { return &t; }
+};
+
+template<typename T>
+struct mutex {
+    std::mutex m;
+    T t;
+
+    lock_guard<T> lock() {
+        return lock_guard<T>(m, t);
+    }
+};
+
+} // namespace mt
+
+template<typename T>
+using mutex = mt::mutex<T>;
+
 namespace questions {
 
 struct LectureQuestionSubmission {
@@ -28,13 +58,18 @@ struct LectureQuestionsContext {
 
 struct LectureAnswer {
     int id;
+    int user;
     std::string question;
     std::string answer;
+    std::chrono::system_clock::time_point time;
 };
 
 struct LectureAnswersContext {
     int num;
+    int lec_id;
+    std::chrono::system_clock::time_point time;
     std::vector<LectureAnswer> answers;
+    std::string parent;
 };
 
 struct LectureListEntry {
@@ -49,27 +84,27 @@ struct LectureListContext {
 
 rocket::response::Template leclist(
     const apikey::ApiKey& apikey,
-    const rocket::State<std::shared_ptr<std::mutex<backend::MySqlBackend>>>& backend,
+    const rocket::State<std::shared_ptr<mutex<backend::MySqlBackend>>>& backend,
     const rocket::State<std::shared_ptr<config::Config>>& config
 );
 
 rocket::response::Template answers(
     const admin::Admin& admin,
     int num,
-    const rocket::State<std::shared_ptr<std::mutex<backend::MySqlBackend>>>& backend
+    const rocket::State<std::shared_ptr<mutex<backend::MySqlBackend>>>& backend
 );
 
 rocket::response::Template questions(
     const apikey::ApiKey& apikey,
     int num,
-    const rocket::State<std::shared_ptr<std::mutex<backend::MySqlBackend>>>& backend
+    const rocket::State<std::shared_ptr<mutex<backend::MySqlBackend>>>& backend
 );
 
 rocket::response::Redirect questions_submit(
     const apikey::ApiKey& apikey,
     int num,
     const rocket::request::Form<LectureQuestionSubmission>& data,
-    const rocket::State<std::shared_ptr<std::mutex<backend::MySqlBackend>>>& backend,
+    const rocket::State<std::shared_ptr<mutex<backend::MySqlBackend>>>& backend,
     const rocket::State<std::shared_ptr<config::Config>>& config
 );
 

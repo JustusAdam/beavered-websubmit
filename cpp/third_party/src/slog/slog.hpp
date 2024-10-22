@@ -4,6 +4,10 @@
 
 namespace slog {
 
+class Discard {};
+
+class o {};
+
 class Logger {
 public:
     static Logger root(slog::Discard, slog::o);
@@ -25,8 +29,6 @@ void debug(std::shared_ptr<Logger> logger, const char* format, Args... args);
 template<typename... Args>
 void error(std::shared_ptr<Logger> logger, const char* format, Args... args);
 
-class Discard {};
 
-class o {};
 
 } // namespace slog

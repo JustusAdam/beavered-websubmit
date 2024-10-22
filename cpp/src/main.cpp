@@ -25,8 +25,9 @@
 using MySqlBackend = backend::MySqlBackend;
 using CookieJar = rocket::http::CookieJar;
 using Redirect = rocket::response::Redirect;
-using State = rocket::State;
-using Template = rocket_dyn_templates::Template;
+template <typename T>
+using State = rocket::State<T>;
+using Template = rocket::response::Template;
 
 std::shared_ptr<slog::Logger> new_logger() {
     // Implementation of new_logger function
@@ -34,10 +35,10 @@ std::shared_ptr<slog::Logger> new_logger() {
     return std::make_shared<slog::Logger>();
 }
 
-rocket::response::Redirect index(const CookieJar& cookies, const State<std::shared_ptr<std::mutex<MySqlBackend>>>& backend) {
+rocket::response::Redirect index(const CookieJar& cookies, const State<std::shared_ptr<MySqlBackend>>& backend) {
     // Implementation of index function
     // This is a placeholder and needs to be properly implemented
-    return Redirect::to(uri!(questions::questions));
+    return Redirect::to("questions");
 }
 
 int main(int argc, char* argv[]) {
@@ -52,9 +53,9 @@ int main(int argc, char* argv[]) {
 
     auto log = new_logger();
 
-    std::shared_ptr<std::mutex<MySqlBackend>> backend;
+    std::shared_ptr<MySqlBackend> backend;
     try {
-        backend = std::make_shared<std::mutex<MySqlBackend>>(
+        backend = std::make_shared<MySqlBackend>(
             MySqlBackend(config->db_name(), log, false)
         );
     } catch (const std::exception& e) {
@@ -66,15 +67,14 @@ int main(int argc, char* argv[]) {
         .manage(config)
         .manage(backend)
         .manage(log)
-        .mount("/", routes![
-            index,
-            login::login,
-            login::logout,
-            questions::leclist,
-            questions::questions,
-            questions::questions_submit,
-            questions::answers
-        ])
+        .mount("/",
+            //index
+            login::login
+            // questions::leclist,
+            // questions::questions,
+            // questions::questions_submit,
+            // questions::answers
+        )
         .mount("/static", rocket::fs::FileServer::from("static/"))
         .attach(Template::fairing())
         .launch();

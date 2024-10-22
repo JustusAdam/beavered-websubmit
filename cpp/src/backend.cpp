@@ -1,16 +1,19 @@
 #include "backend.hpp"
 #include <stdexcept>
+#include <cassert>
+#include <iostream>
+#include <sstream>
+#include <fstream>
 
 namespace backend {
 
 MySqlBackend::MySqlBackend(const std::string& dbname, std::shared_ptr<slog::Logger> log, bool prime)
-    : log_(log ? std::move(log) : std::make_shared<slog::Logger>(slog::Logger::root(slog::Discard, o!()))) {
+    : log_(log), pool_() {
     try {
         std::string connection_string = "mysql://root:password@127.0.0.1/" + dbname;
-        pool_ = mysql::Pool::new(connection_string);
-
         // Check if connection is successful
-        auto conn = pool_->get_conn();
+        pool_ = mysql::Pool(connection_string);
+        auto conn = pool_.get_conn();
         assert(conn->ping());
 
         // Read schema
@@ -22,8 +25,8 @@ MySqlBackend::MySqlBackend(const std::string& dbname, std::shared_ptr<slog::Logg
             conn->query_drop("CREATE DATABASE " + dbname);
 
             // Re-establish connection to the new database
-            pool_ = mysql::Pool::new(connection_string);
-            conn = pool_->get_conn();
+            pool_ = mysql::Pool(connection_string);
+            conn = pool_.get_conn();
 
             // Execute schema
             std::istringstream schema_stream(schema_);
@@ -44,7 +47,7 @@ MySqlBackend::MySqlBackend(const std::string& dbname, std::shared_ptr<slog::Logg
 
 std::vector<std::vector<mysql::Value>> MySqlBackend::prep_exec(const std::string& sql, const std::vector<mysql::Value>& params) {
     try {
-        auto conn = pool_->get_conn();
+        auto conn = pool_.get_conn();
         mysql::Statement stmt;
         
         auto it = prep_stmts_.find(sql);
@@ -57,7 +60,7 @@ std::vector<std::vector<mysql::Value>> MySqlBackend::prep_exec(const std::string
 
         auto result = stmt.execute(params);
         std::vector<std::vector<mysql::Value>> rows;
-        while (auto row = result.fetch()) {
+        for (auto row : result) {
             rows.push_back(row);
         }
         slog::debug(log_, "Executed query {} with params {:?}", sql, params);
@@ -81,7 +84,7 @@ void MySqlBackend::do_insert(const std::string& table, const std::vector<mysql::
     slog::debug(log_, "Executing insert query {} for row {:?}", query, vals);
     
     try {
-        auto conn = pool_->get_conn();
+        auto conn = pool_.get_conn();
         conn->execute(query, vals);
     } catch (const mysql::Error& e) {
         slog::error(log_, "MySQL error: Failed to insert into {}, query {}: {}", table, query, e.what());
