@@ -1,53 +1,62 @@
+#include <string>
+
 #pragma once
 
-namespace lettre {
+namespace lettre
+{
 
-class Message;
+    class Message;
 
-class MessageBuilder {
-public:
-    MessageBuilder& from(const std::string& from);
+    class MessageBuilder
+    {
+    public:
+        MessageBuilder &from(const std::string &from);
 
-    MessageBuilder& to(const std::string& to);
+        MessageBuilder &to(const std::string &to);
 
-    MessageBuilder& subject(const std::string& subject);
+        MessageBuilder &subject(const std::string &subject);
 
-    MessageBuilder& body(const std::string& body);
+        MessageBuilder &body(const std::string &body);
 
-    Message build();
-};
+        Message build();
+    };
 
-class Message {
-public: 
-    static MessageBuilder builder();
-};
+    class Message
+    {
+    public:
+        static MessageBuilder builder();
+    };
 
-class SmtpTransport;
+    class SmtpTransport;
 
-class Credentials {
-private: 
-    std::string username;
-    std::string password;
-public: 
-    Credentials(const std::string& username, const std::string& password);
-};
+    class Credentials
+    {
+    private:
+        std::string username;
+        std::string password;
 
-class SmtpTransportBuilder {
-public:
-    SmtpTransportBuilder& host(const std::string& host);
+    public:
+        Credentials(const std::string &username, const std::string &password);
+    };
 
-    SmtpTransportBuilder& port(int port);
+    class SmtpTransportBuilder
+    {
+    public:
+        SmtpTransportBuilder &host(const std::string &host);
 
-    SmtpTransportBuilder& credentials(const Credentials& credentials);
+        SmtpTransportBuilder &port(int port);
 
-    SmtpTransport build();
-};
+        SmtpTransportBuilder &credentials(const Credentials &credentials);
 
-class SmtpTransport {
-public: 
-    static SmtpTransportBuilder builder(const std::string& host);
+        SmtpTransport build();
+    };
 
-    void send(const Message& message);
-};
+    class SmtpTransport
+    {
+    public:
+        static SmtpTransportBuilder builder(const std::string &host);
+
+        void send(const Message &message);
+    };
 
 }

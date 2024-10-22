@@ -3,32 +3,34 @@
 
 #include "rocket.hpp"
 
-namespace rocket {
+namespace rocket
+{
 
-void ignite::launch() {}
+    void ignite::launch() {}
 
-namespace response {
-Redirect Redirect::to(const std::string& uri) {
-    // Dummy implementation
-    return Redirect();
-}
-}
+    namespace response
+    {
+        Redirect Redirect::to(const std::string &uri)
+        {
+            // Dummy implementation
+            return Redirect();
+        }
+    }
 
-namespace fs {
-FileServer FileServer::from(const char* path) {
-    // Dummy implementation
-    return FileServer();
-}
-}
+    namespace fs
+    {
+        FileServer FileServer::from(const char *path)
+        {
+            // Dummy implementation
+            return FileServer();
+        }
+    }
 
-Fairing Template::fairing() {
-    // Dummy implementation
-    return rocket::Fairing();
-}
+    Fairing Template::fairing()
+    {
+        // Dummy implementation
+        return rocket::Fairing();
+    }
 
-Template Template::render(const std::string& name, const std::unordered_map<std::string, std::string> context) {
-    // Dummy implementation
-    return Template(name, context);
-}
-
+    Template::Template(std::string name, void *state) : name(name), state(state) {}
 }

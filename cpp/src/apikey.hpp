@@ -3,17 +3,16 @@
 #include <string>
 #include "rocket/rocket.hpp"
 
-namespace apikey {
+namespace apikey
+{
 
-class ApiKey {
-public:
-    explicit ApiKey(std::string key);
-    const std::string& key() const;
+    class ApiKey
+    {
+    public:
+        std::string key;
+        std::string user;
+    };
 
-private:
-    std::string key_;
-};
-
-rocket::outcome<ApiKey> from_request(const rocket::request::Request& request);
+    rocket::outcome<ApiKey> from_request(const rocket::request::Request &request);
 
 } // namespace apikey
