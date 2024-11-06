@@ -71,7 +71,7 @@ namespace questions
 
     struct LectureQuestionSubmission
     {
-        std::string question;
+        std::unordered_map<uint64_t, std::string> answers;
     };
 
     struct LectureQuestion

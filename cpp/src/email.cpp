@@ -5,7 +5,7 @@
 namespace email
 {
 
-    void send_email(const std::string &sender, const std::vector<std::string> &to, const std::string &subject, const std::string &body)
+    void send(const std::string &sender, const std::vector<std::string> &to, const std::string &subject, const std::string &body)
     {
         lettre::SmtpTransport transport = lettre::SmtpTransport::builder()
                                               .build();

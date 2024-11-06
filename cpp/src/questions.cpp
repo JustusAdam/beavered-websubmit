@@ -1,6 +1,8 @@
 #include "questions.hpp"
 #include <stdexcept>
 #include <algorithm>
+#include <sstream>
+#include "email.hpp"
 
 using Value = mysql::Value;
 
@@ -134,18 +136,46 @@ namespace questions
         const rocket::State<std::shared_ptr<config::Config>> &config)
     {
         auto bg = (*backend)->lock();
-        auto res = bg->prep_exec(
-            "SELECT COUNT(*) FROM questions WHERE lec = ?",
-            std::vector<Value>{Value((uint64_t)num)});
 
-        uint64_t count = mysql::from_value<uint64_t>(res[0][0]);
+        mysql::Value vnum = Value((uint64_t)num);
+        mysql::Value ts = Value(std::chrono::system_clock::now());
 
-        bg->prep_exec(
-            "INSERT INTO questions (lec, qtext) VALUES (?, ?)",
-            std::vector<Value>{Value((uint64_t)num), Value(data->question)});
-        bg.unlock();
+        for (const auto &[id, elem] : data->answers)
+        {
+            auto rec = std::vector<Value>{Value(apikey.user), vnum, Value(id), Value(elem), ts};
+            bg->replace("answers", rec);
+        }
 
-        return rocket::response::Redirect::to("/questions/" + std::to_string(num));
+        std::stringstream answer_log;
+
+        for (const auto &[id, elem] : data->answers)
+        {
+            answer_log << "Question " << id << std::endl
+                       << ": " << elem << std::endl;
+        }
+
+        auto &cfg = *config;
+
+        if (cfg->send_emails)
+        {
+            std::vector<std::string> recipients;
+            if (num < 90)
+            {
+                recipients = cfg->staff;
+            }
+            else
+            {
+                recipients = cfg->admins;
+            };
+
+            email::send(
+                apikey.user,
+                recipients,
+                "Lecture " + std::to_string(num) + " Answers",
+                answer_log.str());
+        }
+
+        return rocket::response::Redirect::to("/leclist");
     }
 
 } // namespace questions

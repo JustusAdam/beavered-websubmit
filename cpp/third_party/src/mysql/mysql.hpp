@@ -29,6 +29,7 @@ namespace mysql
 
         Value(uint64_t value);
         Value(std::string value);
+        Value(std::chrono::system_clock::time_point value);
         Value(const Value &value);
 
         bool is_null() const;

@@ -18,6 +18,7 @@ namespace mysql
 
     Value::Value(uint64_t value) : type(Value::Type::INT), value(value) {}
     Value::Value(std::string v) : type(Value::Type::INT), value(v) {}
+    Value::Value(std::chrono::system_clock::time_point v) : type(Value::Type::TIME), value(v.time_since_epoch().count()) {}
     Value::Value(const Value &value) : type(value.type), value(0)
     {
         if (value.type == Type::STRING)
