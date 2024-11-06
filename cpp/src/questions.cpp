@@ -140,11 +140,6 @@ namespace questions
 
         uint64_t count = mysql::from_value<uint64_t>(res[0][0]);
 
-        if (count >= (*config)->max_questions)
-        {
-            return rocket::response::Redirect::to("/questions/" + std::to_string(num));
-        }
-
         bg->prep_exec(
             "INSERT INTO questions (lec, qtext) VALUES (?, ?)",
             std::vector<Value>{Value((uint64_t)num), Value(data->question)});

@@ -55,7 +55,7 @@ namespace lettre
         return SmtpTransport();
     }
 
-    SmtpTransportBuilder SmtpTransport::builder(const std::string &host)
+    SmtpTransportBuilder SmtpTransport::builder()
     {
         return SmtpTransportBuilder();
     }

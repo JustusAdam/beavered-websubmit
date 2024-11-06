@@ -1,16 +1,27 @@
 #pragma once
 
 #include <string>
+#include <variant>
+#include <unordered_map>
+#include <vector>
 
-namespace toml {
+namespace toml
+{
 
-class value {
-    // Placeholder for toml::value
-};
+    class value
+    {
+        using key_t = std::string;
+        using map_value = std::unordered_map<key_t, value>;
+        using arr_value = std::vector<value>;
+        std::variant<uint64_t, std::string, map_value, nullptr_t, arr_value, bool> value_f;
 
-value parse(const std::string& filename);
-
-template<typename T>
-T find(const value& v, const std::string& key1, const std::string& key2);
-
+    public:
+        value find(std::string key);
+        uint64_t as_int();
+        std::vector<value> as_vec();
+        std::string as_string();
+        bool as_bool();
+        bool is_null();
+    };
+    value parse(const std::string &filename);
 } // namespace toml

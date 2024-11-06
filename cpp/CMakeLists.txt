@@ -20,13 +20,14 @@ add_executable(
     ${SOURCES}
 )
 
+include(CMakePrintHelpers)
+
 function(link_my_lib name)
-    find_library(${name} NAMES 
-        ${name}
+    find_library(${name} 
         PATHS 
         ${CMAKE_CURRENT_SOURCE_DIR}/third_party/build
     )
-    target_link_libraries(websubmit PRIVATE ${name})
+    target_link_libraries(websubmit PRIVATE ${${name}})
 endfunction()
 
 link_my_lib(mysql)

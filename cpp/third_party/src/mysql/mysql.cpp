@@ -74,6 +74,11 @@ namespace mysql
         return Result();
     }
 
+    Result Connection::execute(const std::string &query, const std::vector<Value> &params)
+    {
+        return this->prepare(query).execute(params);
+    }
+
     result_iterator::result_iterator(result_iterator::elem_ty *pos) : pos(pos) {}
 
     bool result_iterator::operator!=(const result_iterator &other)
@@ -102,4 +107,31 @@ namespace mysql
         return result_iterator(&*values.end());
     }
 
+    template <>
+    uint64_t from_value(const Value &value)
+    {
+        assert(value.get_type() == Value::Type::INT);
+        return value.value.uint64_value;
+    }
+
+    template <>
+    std::string from_value(const Value &value)
+    {
+        assert(value.get_type() == Value::Type::STRING);
+        return value.value.string_value;
+    }
+
+    template <>
+    std::chrono::system_clock::time_point from_value(const Value &value)
+    {
+        assert(value.get_type() == Value::Type::TIME);
+        return std::chrono::system_clock::from_time_t(value.value.uint64_value);
+    }
+
+    template <>
+    int from_value(const Value &value)
+    {
+        assert(value.get_type() == Value::Type::INT);
+        return value.value.uint64_value;
+    }
 } // namespace mysql

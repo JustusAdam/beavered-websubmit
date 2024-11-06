@@ -13,26 +13,16 @@ namespace config
     public:
         static std::shared_ptr<Config> from_file(const std::string &filename);
 
-        const std::string &db_name() const;
-        const std::string &smtp_server() const;
-        int smtp_port() const;
-        const std::string &smtp_user() const;
-        const std::string &smtp_pass() const;
-        const std::string &smtp_from() const;
-
         Config() = default;
+
         std::string class_;
-
-        int max_questions;
         std::vector<std::string> admins;
-
-    private:
-        std::string db_name_;
-        std::string smtp_server_;
-        int smtp_port_;
-        std::string smtp_user_;
-        std::string smtp_pass_;
-        std::string smtp_from_;
+        std::vector<std::string> staff;
+        std::string template_dir;
+        std::string resource_dir;
+        std::string secret;
+        bool send_emails;
+        bool prime;
     };
 
 } // namespace config

@@ -54,7 +54,7 @@ namespace lettre
     class SmtpTransport
     {
     public:
-        static SmtpTransportBuilder builder(const std::string &host);
+        static SmtpTransportBuilder builder();
 
         void send(const Message &message);
     };

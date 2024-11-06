@@ -55,7 +55,7 @@ namespace mysql
         bool ping();
         void query_drop(const std::string &query);
         class Statement prepare(const std::string &query);
-        class Result execute(std::string query, const std::vector<Value> &params);
+        class Result execute(const std::string &query, const std::vector<Value> &params);
     };
 
     class Pool
@@ -102,24 +102,15 @@ namespace mysql
     };
 
     template <>
-    uint64_t from_value(const Value &value)
-    {
-        assert(value.get_type() == Value::Type::INT);
-        return value.value.uint64_value;
-    }
+    uint64_t from_value(const Value &value);
 
     template <>
-    std::string from_value(const Value &value)
-    {
-        assert(value.get_type() == Value::Type::STRING);
-        return value.value.string_value;
-    }
+    std::string from_value(const Value &value);
 
     template <>
-    std::chrono::system_clock::time_point from_value(const Value &value)
-    {
-        assert(value.get_type() == Value::Type::TIME);
-        return std::chrono::system_clock::from_time_t(value.value.uint64_value);
-    }
+    std::chrono::system_clock::time_point from_value(const Value &value);
+
+    template <>
+    int from_value(const Value &value);
 
 } // namespace mysql
