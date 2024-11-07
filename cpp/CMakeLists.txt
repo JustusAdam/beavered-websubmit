@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.18)
 
 project(Websubmit VERSION 1.0)
 
@@ -24,8 +24,10 @@ include(CMakePrintHelpers)
 
 function(link_my_lib name)
     find_library(${name} 
+        NAMES ${name}
         PATHS 
         ${CMAKE_CURRENT_SOURCE_DIR}/third_party/build
+        REQUIRED
     )
     target_link_libraries(websubmit PRIVATE ${${name}})
 endfunction()

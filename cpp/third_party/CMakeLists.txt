@@ -4,6 +4,8 @@ project(third_party_libs)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+set(CMAKE_OSX_ARCHITECTURES "x86_64")
+
 # Function to create a shared library
 function(add_third_party_library name)
     add_library(${name} SHARED
