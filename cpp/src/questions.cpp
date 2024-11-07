@@ -150,8 +150,9 @@ namespace questions
 
         for (const auto &[id, elem] : data->answers)
         {
-            answer_log << "Question " << id << std::endl
-                       << ": " << elem << std::endl;
+            answer_log << "Question " << id
+                       << ": " << std::endl
+                       << elem << std::endl;
         }
 
         auto &cfg = *config;
@@ -178,4 +179,43 @@ namespace questions
         return rocket::response::Redirect::to("/leclist");
     }
 
+    std::vector<LectureAnswer> get_answers(
+        std::string user,
+        const rocket::State<std::shared_ptr<mutex<backend::MySqlBackend>>> &backend)
+    {
+        auto bg = (*backend)->lock();
+        auto res = bg->prep_exec(
+            "SELECT * FROM answers WHERE email = ?",
+            std::vector<Value>{Value(user)});
+        bg.unlock();
+
+        std::vector<LectureAnswer> answers;
+        for (const auto &r : res)
+        {
+            LectureAnswer answer;
+            answer.id = mysql::from_value<uint64_t>(r[2]);
+            answer.user = mysql::from_value<std::string>(r[0]);
+            answer.answer = mysql::from_value<std::string>(r[3]);
+            if (r[4].get_type() == Value::Type::TIME)
+            {
+                answer.time = mysql::from_value<std::chrono::system_clock::time_point>(r[4]);
+            }
+            answers.push_back(answer);
+        }
+
+        return answers;
+    }
+
+    rocket::response::Redirect forget_user(apikey::ApiKey apikey, const rocket::State<std::shared_ptr<mutex<backend::MySqlBackend>>> &backend)
+    {
+        auto bg = (*backend)->lock();
+
+        std::string key = apikey.user;
+        auto answers = get_answers(key, backend);
+
+        for (const auto &answer : answers)
+        {
+            bg->delete_("answers", std::vector<std::string>{"id"}, std::vector{Value(answer.id)});
+        }
+    }
 } // namespace questions
