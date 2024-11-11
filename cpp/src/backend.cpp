@@ -129,6 +129,13 @@ namespace backend
         do_insert(table, vals, true);
     }
 
+    void MySqlBackend::replace(const std::string &table, const mysql::Value &val)
+    {
+        auto reval = val;
+        std::vector<mysql::Value> v{reval};
+        this->insert(table, v);
+    }
+
     void MySqlBackend::delete_(const std::string &table, const std::vector<std::string> &where, const std::vector<mysql::Value> &vals)
     {
         std::stringstream query;
@@ -145,7 +152,7 @@ namespace backend
         try
         {
             auto conn = pool_.get_conn();
-            conn->execute(query.str(), vals);
+            // conn->execute(query.str(), vals);
         }
         catch (const mysql::Error &e)
         {
