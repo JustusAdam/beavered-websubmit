@@ -137,44 +137,45 @@ namespace questions
     {
         auto bg = (*backend)->lock();
 
-        mysql::Value vnum = Value((uint64_t)num);
-        mysql::Value ts = Value(std::chrono::system_clock::now());
+        // mysql::Value vnum = Value((uint64_t)num);
+        // mysql::Value ts = Value(std::chrono::system_clock::now());
 
         for (const auto &[id, elem] : data->answers)
         {
-            auto rec = std::vector<Value>{Value(apikey.user), vnum, Value(id), Value(elem), ts};
-            bg->replace("answers", rec);
+            bg->replace("answers", std::vector<Value>());
+            // auto rec = std::vector<Value>{Value(apikey.user), vnum, Value(id), Value(elem), ts};
+            // bg->replace("answers", rec);
         }
 
-        std::stringstream answer_log;
+        // std::stringstream answer_log;
 
-        for (const auto &[id, elem] : data->answers)
-        {
-            answer_log << "Question " << id
-                       << ": " << std::endl
-                       << elem << std::endl;
-        }
+        // for (const auto &[id, elem] : data->answers)
+        // {
+        //     answer_log << "Question " << id
+        //                << ": " << std::endl
+        //                << elem << std::endl;
+        // }
 
-        auto &cfg = *config;
+        // auto &cfg = *config;
 
-        if (cfg->send_emails)
-        {
-            std::vector<std::string> recipients;
-            if (num < 90)
-            {
-                recipients = cfg->staff;
-            }
-            else
-            {
-                recipients = cfg->admins;
-            };
+        // if (cfg->send_emails)
+        // {
+        //     std::vector<std::string> recipients;
+        //     if (num < 90)
+        //     {
+        //         recipients = cfg->staff;
+        //     }
+        //     else
+        //     {
+        //         recipients = cfg->admins;
+        //     };
 
-            email::send(
-                apikey.user,
-                recipients,
-                "Lecture " + std::to_string(num) + " Answers",
-                answer_log.str());
-        }
+        //     email::send(
+        //         apikey.user,
+        //         recipients,
+        //         "Lecture " + std::to_string(num) + " Answers",
+        //         answer_log.str());
+        // }
 
         return rocket::response::Redirect::to("/leclist");
     }

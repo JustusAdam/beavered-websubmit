@@ -17,7 +17,7 @@ namespace backend
 
         std::vector<std::vector<mysql::Value>> prep_exec(const std::string &sql, const std::vector<mysql::Value> &params);
         void insert(const std::string &table, const std::vector<mysql::Value> &vals);
-        void replace(const std::string &table, const std::vector<mysql::Value> &vals);
+        __attribute__((noinline)) void replace(const std::string &table, const std::vector<mysql::Value> &vals);
         // This is just for testing if the vector is the problem
         void replace(const std::string &table, const mysql::Value &val);
         void delete_(const std::string &table, const std::vector<std::string> &conds, const std::vector<mysql::Value> &vals);
