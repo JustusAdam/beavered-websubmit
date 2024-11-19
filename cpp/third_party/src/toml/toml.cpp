@@ -12,9 +12,10 @@ namespace toml
         return value();
     }
 
-    value value::find(std::string key)
+    value &value::find(std::string key)
     {
-        return std::get<value::map_value>(this->value_f).at(key);
+        value::map_value &v = std::get<value::map_value>(this->value_f);
+        return v->at(key);
     }
     uint64_t value::as_int()
     {

@@ -1,5 +1,6 @@
 #include "mysql.hpp"
 #include <stdexcept>
+#include <cstring>
 
 namespace mysql
 {

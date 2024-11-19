@@ -8,6 +8,7 @@
 #include "config.hpp"
 #include "apikey.hpp"
 #include "admin.hpp"
+#include <mutex>
 
 namespace mt
 {
