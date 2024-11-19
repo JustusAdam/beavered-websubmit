@@ -137,14 +137,13 @@ namespace questions
     {
         auto bg = (*backend)->lock();
 
-        // mysql::Value vnum = Value((uint64_t)num);
-        // mysql::Value ts = Value(std::chrono::system_clock::now());
+        mysql::Value vnum = Value((uint64_t)num);
+        mysql::Value ts = Value(std::chrono::system_clock::now());
 
-        for (const auto &[id, elem] : data->answers)
+        for (const auto &elem : data->answers)
         {
-            bg->replace("answers", std::vector<Value>());
-            // auto rec = std::vector<Value>{Value(apikey.user), vnum, Value(id), Value(elem), ts};
-            // bg->replace("answers", rec);
+            auto rec = std::vector<Value>{Value(apikey.user), vnum, Value(elem.first), Value(elem.second), ts};
+            bg->replace("answers", rec);
         }
 
         // std::stringstream answer_log;
