@@ -148,11 +148,11 @@ namespace questions
 
         std::stringstream answer_log;
 
-        for (const auto &[id, elem] : data->answers)
+        for (const auto &elem : data->answers)
         {
-            answer_log << "Question " << id
+            answer_log << "Question " << elem.first
                        << ": " << std::endl
-                       << elem << std::endl;
+                       << elem.second << std::endl;
         }
 
         auto &cfg = *config;
